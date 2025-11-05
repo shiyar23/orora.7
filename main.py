@@ -9,7 +9,7 @@ if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN غير موجود! أضفه في Railway.")
 
 bot = telebot.TeleBot(BOT_TOKEN)
-CHANNEL_USERNAME = os.getenv('CHANNEL_USERNAME', '@aicodtrading')
+CHANNEL_USERNAME = os.getenv('CHANNEL_USERNAME', '@testing33271')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ def send_and_save_message(chat_id, text, reply_markup=None, user_id=None, parse_
 def calculate_pips(entry, target, pip_size, symbol):
     diff = abs(target - entry)
     if symbol == "XAUUSD":
-        return int(round(diff * 10, 0))  # 1$ = 10 pips
+        return int(round(diff * 10, 0))
     else:
         return int(round(diff / pip_size, 0))
 
@@ -87,12 +87,12 @@ def create_inline_buttons(data):
 
     markup = types.InlineKeyboardMarkup(row_width=1)
 
+    # TP1 - TP3
     pips_tp1 = calculate_pips(entry_low, tp_prices[0], pip_size, symbol)
     pips_tp2 = calculate_pips(entry_low, tp_prices[1], pip_size, symbol)
     pips_tp3 = calculate_pips(entry_low, tp_prices[2], pip_size, symbol)
     pips_sl = calculate_pips(entry_low, sl, pip_size, symbol)
 
-    # أزرار بدون كلمة Trophy
     btn_tp1 = types.InlineKeyboardButton(
         f"{'Done TP1' if data.get('tp1_done') else 'TP1'}: {pips_tp1} PIPS {emoji}",
         callback_data=f"tp1_{msg_id}"
@@ -105,16 +105,42 @@ def create_inline_buttons(data):
         f"{'Done TP3' if data.get('tp3_done') else 'TP3'}: {pips_tp3} PIPS {emoji}",
         callback_data=f"tp3_{msg_id}"
     )
+
+    # TP4 (يدوي)
+    tp4_price = data.get('tp4_price')
+    pips_tp4 = calculate_pips(entry_low, tp4_price, pip_size, symbol) if tp4_price else 0
     btn_tp4 = types.InlineKeyboardButton(
-        f"{'Done TP4: SWING' if data.get('tp4_done') else 'TP4: SWING'} {emoji}",
+        f"{'Done TP4' if data.get('tp4_done') else 'TP4'}: {pips_tp4} PIPS {emoji}",
         callback_data=f"tp4_{msg_id}"
     )
+
+    # SL
     btn_sl = types.InlineKeyboardButton(
         f"{'Hit SL' if data.get('sl_hit') else 'SL'}: {pips_sl} PIPS",
         callback_data=f"sl_{msg_id}"
     )
 
-    markup.add(btn_tp1, btn_tp2, btn_tp3, btn_tp4, btn_sl)
+    # زر إضافة TP (قبل SWING)
+    btn_add_tp = types.InlineKeyboardButton("إضافة TP", callback_data=f"add_tp_{msg_id}")
+
+    # SWING
+    btn_swing = types.InlineKeyboardButton(
+        f"{'Done SWING' if data.get('swing_done') else 'SWING'} {emoji}",
+        callback_data=f"swing_{msg_id}"
+    )
+
+    # زر تعديل SL
+    btn_edit_sl = types.InlineKeyboardButton("تعديل SL", callback_data=f"edit_sl_{msg_id}")
+
+    # ترتيب الأزرار: TP1-TP4 → إضافة TP → SWING → SL → تعديل SL
+    markup.add(btn_tp1, btn_tp2, btn_tp3)
+    if tp4_price:
+        markup.add(btn_tp4)
+    markup.add(btn_add_tp)
+    markup.add(btn_swing)
+    markup.add(btn_sl)
+    markup.add(btn_edit_sl)
+
     return markup
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -135,14 +161,27 @@ def handle_callback(call):
     if action == 'tp1' and not data.get('tp1_done'): data['tp1_done'] = True; was_done = True
     elif action == 'tp2' and not data.get('tp2_done'): data['tp2_done'] = True; was_done = True
     elif action == 'tp3' and not data.get('tp3_done'): data['tp3_done'] = True; was_done = True
-    elif action == 'tp4' and not data.get('tp4_done'): data['tp4_done'] = True; was_done = True
+    elif action == 'tp4' and data.get('tp4_price') and not data.get('tp4_done'): data['tp4_done'] = True; was_done = True
     elif action == 'sl' and not data.get('sl_hit'): data['sl_hit'] = True; was_done = True
+    elif action == 'swing' and not data.get('swing_done'): data['swing_done'] = True; was_done = True
 
-    if not was_done:
+    if action in ['tp1', 'tp2', 'tp3', 'tp4', 'sl', 'swing'] and not was_done:
         bot.answer_callback_query(call.id, "تم بالفعل!")
         return
 
-    # تحديث النص: Done TP1: 3907.50
+    # تعديل SL
+    if action == 'edit_sl':
+        bot.answer_callback_query(call.id, "أدخل سعر SL الجديد...")
+        bot.register_next_step_handler(call.message, process_new_sl, user_id, msg_id)
+        return
+
+    # إضافة TP
+    if action == 'add_tp':
+        bot.answer_callback_query(call.id, "أدخل سعر الهدف الجديد...")
+        bot.register_next_step_handler(call.message, process_new_tp, user_id, msg_id)
+        return
+
+    # تحديث النص
     lines = call.message.text.split('\n')
     new_lines = []
     for line in lines:
@@ -153,7 +192,9 @@ def handle_callback(call):
         elif 'TP3:' in line and action == 'tp3':
             line = f"✅Done TP3: {data['tp_prices'][2]:.{COMMODITIES[data['commodity']][2]}f}"
         elif 'TP4:' in line and action == 'tp4':
-            line = "✅Done TP4: SWING"
+            line = f"✅Done TP4: {data['tp4_price']:.{COMMODITIES[data['commodity']][2]}f}"
+        elif 'SWING' in line and action == 'swing':
+            line = "✅Done SWING"
         elif 'SL:' in line and action == 'sl':
             line = line.replace("PROHIBITED", "HIT")
         new_lines.append(line)
@@ -194,13 +235,19 @@ def handle_callback(call):
     if action.startswith('tp'):
         idx = int(action[2]) - 1 if action != 'tp4' else -1
         if action == 'tp4':
-            update_text = f"<b>✅Done TP4: SWING {emoji}</b>\n<b>{name} {trade_type}</b>"
+            pips = calculate_pips(data['entry_low'], data['tp4_price'], COMMODITIES[symbol][3], symbol)
+            update_text = f"<b>✅Done TP4: {pips} PIPS {emoji}</b>\n" \
+                          f"<b>{name} {trade_type}</b>\n" \
+                          f"Entry: {data['entry_low']:.{COMMODITIES[symbol][2]}f}\n" \
+                          f"TP4: {data['tp4_price']:.{COMMODITIES[symbol][2]}f}"
         else:
             pips = calculate_pips(data['entry_low'], data['tp_prices'][idx], COMMODITIES[symbol][3], symbol)
             update_text = f"<b>✅Done TP{action[2]}: {pips} PIPS {emoji}</b>\n" \
                           f"<b>{name} {trade_type}</b>\n" \
                           f"Entry: {data['entry_low']:.{COMMODITIES[symbol][2]}f}\n" \
                           f"TP{action[2]}: {data['tp_prices'][idx]:.{COMMODITIES[symbol][2]}f}"
+    elif action == 'swing':
+        update_text = f"<b>✅Done SWING {emoji}</b>\n<b>{name} {trade_type}</b>"
     elif action == 'sl':
         pips = calculate_pips(data['entry_low'], data['sl'], COMMODITIES[symbol][3], symbol)
         update_text = f"<b>❌Hit SL: {pips} PIPS</b>\n" \
@@ -226,12 +273,10 @@ def start(message):
 def process_commodity(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
-    # السطر المُصحح:
     selected = next((k for k, v in COMMODITIES.items() if f"{v[0]} {EMOJI_MAP.get(v[1], 'Chart')}" in message.text), None)
     if not selected:
         send_and_save_message(chat_id, "*اختر من القائمة.*", commodity_keyboard(), user_id)
         return
-    # باقي الكود...
     user_data.setdefault(user_id, {'bot_messages': []})
     code = COMMODITIES[selected][1]
     user_data[user_id].update({
@@ -285,10 +330,21 @@ def process_stop_loss(message):
     chat_id = message.chat.id
     try:
         user_data[user_id]['stop_loss'] = float(message.text)
-        generate_and_send_setup(user_id, chat_id)
+        send_and_save_message(chat_id, "أدخل سعر TP4 (يدوي):", types.ReplyKeyboardRemove(), user_id)
+        bot.register_next_step_handler(message, process_tp4)
     except ValueError:
         send_and_save_message(chat_id, "*سعر SL غير صحيح.*", types.ReplyKeyboardRemove(), user_id)
         bot.register_next_step_handler(message, process_stop_loss)
+
+def process_tp4(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    try:
+        user_data[user_id]['tp4_price'] = float(message.text)
+        generate_and_send_setup(user_id, chat_id)
+    except ValueError:
+        send_and_save_message(chat_id, "*سعر TP4 غير صحيح.*", types.ReplyKeyboardRemove(), user_id)
+        bot.register_next_step_handler(message, process_tp4)
 
 def generate_and_send_setup(user_id, chat_id):
     data = user_data[user_id]
@@ -297,14 +353,12 @@ def generate_and_send_setup(user_id, chat_id):
     emoji = data['emoji']
     entry_price = data['entry_price']
     stop_loss = data['stop_loss']
+    tp4_price = data['tp4_price']
     trade_type = data.get('trade_type', 'BUY')
 
     is_limit = 'LIMIT' in trade_type
     is_buy = 'BUY' in trade_type
     direction = 1 if is_buy else -1
-
-    # إيموجي الاتجاه
-# إيموجي الاتجاه
     direction_emoji = "🟢" if is_buy else "🔴"
 
     if symbol in ["XAUUSD", "BTCUSD", "ETHUSD"]:
@@ -322,7 +376,6 @@ def generate_and_send_setup(user_id, chat_id):
 
     sl = round(max(entry_high + pip_size, stop_loss) if not is_buy else min(entry_low - pip_size, stop_loss), decimals)
 
-    # الحل الصحيح: BUY = صعود، SELL = هبوط
     if is_buy:
         tp1 = round(entry_low + tp_step, decimals)
         tp2 = round(tp1 + tp_step, decimals)
@@ -336,11 +389,12 @@ def generate_and_send_setup(user_id, chat_id):
 
     output = f"SETUP: {name} {emoji} › {display_type}\n\n"
     output += f"{entry_display}\n"
-    output += f"<b>SL:</b> {sl:.{decimals}f}❌\n\n"
-    output += f"CHECK <b>☑️TP1:</b> {tp1:.{decimals}f}\n"
-    output += f"CHECK <b>☑️TP2:</b> {tp2:.{decimals}f}\n"
-    output += f"CHECK <b>☑️TP3:</b> {tp3:.{decimals}f}\n"
-    output += f"CHECK <b>☑️TP4: SWING</b>\n\n"
+    output += f"<b>SL:</b> {sl:.{decimals}f}Cross\n\n"
+    output += f"Check <b>Check ☑️TP1:</b> {tp1:.{decimals}f}\n"
+    output += f"Check <b>Check ☑️TP2:</b> {tp2:.{decimals}f}\n"
+    output += f"Check <b>Check ☑️TP3:</b> {tp3:.{decimals}f}\n"
+    output += f"Check <b>Check ☑️TP4:</b> {tp4_price:.{decimals}f}\n"
+    output += f"Check <b>Check ☑️SWING</b>\n\n"
     output += "Warning <i>⚠️تنويه هام: يجب الالتزام الصارم بإجراءات وضوابط إدارة رأس المال المقررة. 📊💰</i>"
 
     msg = send_and_save_message(chat_id, output, user_id=user_id)
@@ -349,12 +403,14 @@ def generate_and_send_setup(user_id, chat_id):
             'msg_id': msg.message_id,
             'entry_low': entry_low,
             'tp_prices': [tp1, tp2, tp3],
+            'tp4_price': tp4_price,
             'sl': sl,
             'direction': direction,
             'is_buy': is_buy,
             'is_limit': is_limit,
             'tp1_done': False, 'tp2_done': False, 'tp3_done': False,
-            'tp4_done': False, 'sl_hit': False
+            'tp4_done': False, 'swing_done': False, 'sl_hit': False,
+            'extra_tps': []
         })
         bot.edit_message_reply_markup(chat_id, msg.message_id, reply_markup=create_inline_buttons(data))
 
@@ -364,6 +420,73 @@ def generate_and_send_setup(user_id, chat_id):
             data['channel_msg_id'] = channel_msg.message_id
         except Exception as e:
             logger.error(f"فشل النشر: {e}")
+
+def process_new_sl(message, user_id, msg_id):
+    chat_id = message.chat.id
+    if user_id not in user_data or user_data[user_id].get('msg_id') != msg_id:
+        return
+    try:
+        new_sl = float(message.text)
+        data = user_data[user_id]
+        symbol = data['commodity']
+        decimals = COMMODITIES[symbol][2]
+        data['sl'] = round(new_sl, decimals)
+        update_setup_message(user_id, chat_id)
+    except ValueError:
+        bot.send_message(chat_id, "*سعر SL غير صحيح.*", parse_mode='HTML')
+        bot.register_next_step_handler(message, process_new_sl, user_id, msg_id)
+
+def process_new_tp(message, user_id, msg_id):
+    chat_id = message.chat.id
+    if user_id not in user_data or user_data[user_id].get('msg_id') != msg_id:
+        return
+    try:
+        new_tp = float(message.text)
+        data = user_data[user_id]
+        symbol = data['commodity']
+        decimals = COMMODITIES[symbol][2]
+        new_tp = round(new_tp, decimals)
+        data['extra_tps'].append(new_tp)
+        update_setup_message(user_id, chat_id)
+    except ValueError:
+        bot.send_message(chat_id, "*سعر TP غير صحيح.*", parse_mode='HTML')
+        bot.register_next_step_handler(message, process_new_tp, user_id, msg_id)
+
+def update_setup_message(user_id, chat_id):
+    data = user_data[user_id]
+    symbol = data['commodity']
+    name, code, decimals, _, _ = COMMODITIES[symbol]
+    emoji = data['emoji']
+    entry_low = data['entry_low']
+    sl = data['sl']
+    tp_prices = data['tp_prices']
+    tp4_price = data['tp4_price']
+    trade_type = data['trade_type']
+    is_buy = data['is_buy']
+    direction_emoji = "Green Circle" if is_buy else "Red Circle"
+
+    entry_display = f"<b>Entry (Limit):</b> {data['entry_price']:.{decimals}f}" if data['is_limit'] else f"<b>Entry:</b> {entry_low:.{decimals}f} - {data.get('entry_high', entry_low):.{decimals}f}"
+
+    output = f"SETUP: {name} {emoji} › {trade_type} {direction_emoji}\n\n"
+    output += f"{entry_display}\n"
+    output += f"<b>SL:</b> {sl:.{decimals}f}Cross\n\n"
+    output += f"Check <b>Check ☑️TP1:</b> {tp_prices[0]:.{decimals}f}\n"
+    output += f"Check <b>Check ☑️TP2:</b> {tp_prices[1]:.{decimals}f}\n"
+    output += f"Check <b>Check ☑️TP3:</b> {tp_prices[2]:.{decimals}f}\n"
+    output += f"Check <b>Check ☑️TP4:</b> {tp4_price:.{decimals}f}\n"
+    for i, tp in enumerate(data.get('extra_tps', []), start=5):
+        status = "Done" if data.get(f'tp{i}_done', False) else "Check"
+        output += f"{status} <b>Check TP{i}:</b> {tp:.{decimals}f}\n"
+    output += f"Check <b>Check SWING</b>\n\n" if not data.get('swing_done') else "Done <b>Done SWING</b>\n\n"
+    output += "Warning <i>⚠️تنويه هام: يجب الالتزام الصارم بإجراءات وضوابط إدارة رأس المال المقررة. 📊💰</i>"
+
+    try:
+        bot.edit_message_text(chat_id=chat_id, message_id=data['msg_id'], text=output, parse_mode='HTML')
+        bot.edit_message_reply_markup(chat_id=chat_id, message_id=data['msg_id'], reply_markup=create_inline_buttons(data))
+        if 'channel_msg_id' in data:
+            bot.edit_message_text(chat_id=CHANNEL_USERNAME, message_id=data['channel_msg_id'], text=output, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"فشل تحديث الرسالة: {e}")
 
 @bot.message_handler(func=lambda m: m.text == 'بدء جديد')
 def new_setup(message):
