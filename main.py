@@ -194,10 +194,10 @@ def handle_callback(call):
     if action.startswith('tp'):
         idx = int(action[2]) - 1 if action != 'tp4' else -1
         if action == 'tp4':
-            update_text = f"<b>Done TP4: SWING {emoji}</b>\n<b>{name} {trade_type}</b>"
+            update_text = f"<b>✅Done TP4: SWING {emoji}</b>\n<b>{name} {trade_type}</b>"
         else:
             pips = calculate_pips(data['entry_low'], data['tp_prices'][idx], COMMODITIES[symbol][3], symbol)
-            update_text = f"<b>Done TP{action[2]}: {pips} PIPS {emoji}</b>\n" \
+            update_text = f"<b>✅Done TP{action[2]}: {pips} PIPS {emoji}</b>\n" \
                           f"<b>{name} {trade_type}</b>\n" \
                           f"Entry: {data['entry_low']:.{COMMODITIES[symbol][2]}f}\n" \
                           f"TP{action[2]}: {data['tp_prices'][idx]:.{COMMODITIES[symbol][2]}f}"
@@ -304,7 +304,7 @@ def generate_and_send_setup(user_id, chat_id):
     direction = 1 if is_buy else -1
 
     # إيموجي الاتجاه
-    direction_emoji = "Red Circle" if is_buy else "Red Circle"
+    direction_emoji = "🔴" if is_buy else "🟢"
 
     if symbol in ["XAUUSD", "BTCUSD", "ETHUSD"]:
         entry_low = round(entry_price - 1.5 if is_buy else entry_price, 2)
