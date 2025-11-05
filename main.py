@@ -20,7 +20,7 @@ user_data = {}
 EMOJI_MAP = {
     "EUR": "🇪🇺", "GBP": "🇬🇧", "JPY": "🇯🇵", "AUD": "🇦🇺",
     "CAD": "🇨🇦", "NZD": "🇳🇿", "CHF": "🇨🇭",
-    "GOLD": "🏆", "SILVER": "🪙", "BTC": "₿", "ETH": "Ξ"
+    "GOLD": "🏆", "SILVER": "🪙", "BTC": "₿", "ETH": "💎"
 }
 
 COMMODITIES = {
@@ -220,7 +220,7 @@ def start(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
     user_data[user_id] = {'bot_messages': []}
-    send_and_save_message(chat_id, "<b>مرحبًا! إعداد صفقات احترافي</b>\nاختر السلعة:", commodity_keyboard(), user_id)
+    send_and_save_message(chat_id, "<b>🌟أهلاً بك في بوت التداول الذكي لترتيب الصفقات ORORA.UN</b>\nاختر السلعة:", commodity_keyboard(), user_id)
 
 @bot.message_handler(func=lambda m: any(f"{v[0]} {EMOJI_MAP.get(v[1], 'Chart')}" in m.text for v in COMMODITIES.values()))
 def process_commodity(message):
@@ -301,10 +301,8 @@ def generate_and_send_setup(user_id, chat_id):
 
     is_limit = 'LIMIT' in trade_type
     is_buy = 'BUY' in trade_type
-    direction = 1 if is_buy else -1
-
-    # إيموجي الاتجاه
-    direction_emoji = "🟢" if is_buy else "🔴"
+# إيموجي الاتجاه
+    direction_emoji = "🔴" if is_buy else "🟢"
 
     if symbol in ["XAUUSD", "BTCUSD", "ETHUSD"]:
         entry_low = round(entry_price - 1.5 if is_buy else entry_price, 2)
@@ -321,9 +319,15 @@ def generate_and_send_setup(user_id, chat_id):
 
     sl = round(max(entry_high + pip_size, stop_loss) if not is_buy else min(entry_low - pip_size, stop_loss), decimals)
 
-    tp1 = round(entry_low - (tp_step * direction), decimals)
-    tp2 = round(tp1 - (tp_step * direction), decimals)
-    tp3 = round(tp2 - (tp_step * direction), decimals)
+    # الحل الصحيح: BUY = صعود، SELL = هبوط
+    if is_buy:
+        tp1 = round(entry_low + tp_step, decimals)
+        tp2 = round(tp1 + tp_step, decimals)
+        tp3 = round(tp2 + tp_step, decimals)
+    else:
+        tp1 = round(entry_low - tp_step, decimals)
+        tp2 = round(tp1 - tp_step, decimals)
+        tp3 = round(tp2 - tp_step, decimals)
 
     display_type = f"{trade_type} {direction_emoji}"
 
