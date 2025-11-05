@@ -16,19 +16,12 @@ logger = logging.getLogger(__name__)
 
 user_data = {}
 
+# إيموجيات علم حقيقية
 # إيموجيات علم حقيقية + مخصصة
 EMOJI_MAP = {
-    "EUR": "EU",   # علم الاتحاد الأوروبي
-    "GBP": "GB",   # علم بريطانيا
-    "JPY": "JP",   # علم اليابان
-    "AUD": "AU",   # علم أستراليا
-    "CAD": "CA",   # علم كندا
-    "NZD": "NZ",   # علم نيوزيلندا
-    "CHF": "CH",   # علم سويسرا
-    "GOLD": "Gold Coin",   # عملة ذهب
-    "SILVER": "Silver Coin", # عملة فضة
-    "BTC": "Bitcoin",      # بيتكوين
-    "ETH": "Ethereum",     # إيثريوم
+    "EUR": "🇪🇺", "GBP": "🇬🇧", "JPY": "🇯🇵", "AUD": "🇦🇺",
+    "CAD": "🇨🇦", "NZD": "🇳🇿", "CHF": "🇨🇭",
+    "GOLD": "🏆", "SILVER": "🪙", "BTC": "₿", "ETH": "Ξ"
 }
 
 COMMODITIES = {
@@ -39,7 +32,7 @@ COMMODITIES = {
     "USDCAD": ("USD/CAD", "CAD", 5, 0.0001, 50),
     "NZDUSD": ("NZD/USD", "NZD", 5, 0.0001, 50),
     "USDCHF": ("USD/CHF", "CHF", 5, 0.0001, 50),
-    "XAUUSD": ("GOLD", "GOLD", 2, 1.0, 5.0),
+    "XAUUSD": ("GOLD", "GOLD", 2, 1.0, 5.0),     # 1 دولار = 10 نقاط
     "XAGUSD": ("SILVER", "SILVER", 3, 0.01, 0.5),
     "BTCUSD": ("BITCOIN", "BTC", 2, 1.0, 100.0),
     "ETHUSD": ("ETHEREUM", "ETH", 2, 1.0, 50.0),
@@ -76,9 +69,13 @@ def send_and_save_message(chat_id, text, reply_markup=None, user_id=None, parse_
         logger.error(f"فشل الإرسال: {e}")
         return None
 
-def calculate_pips(entry, target, pip_size):
+def calculate_pips(entry, target, pip_size, symbol):
     diff = abs(target - entry)
-    pips = int(round(diff / pip_size, 0))
+    # تعديل خاص للذهب: 1 دولار = 10 نقاط
+    if symbol == "XAUUSD":
+        pips = int(round(diff * 10, 0))  # 1$ = 10 pips
+    else:
+        pips = int(round(diff / pip_size, 0))
     return pips
 
 def create_inline_buttons(data):
@@ -93,25 +90,32 @@ def create_inline_buttons(data):
 
     markup = types.InlineKeyboardMarkup(row_width=1)
 
-    pips_tp1 = calculate_pips(entry_low, tp_prices[0], pip_size)
-    pips_tp2 = calculate_pips(entry_low, tp_prices[1], pip_size)
-    pips_tp3 = calculate_pips(entry_low, tp_prices[2], pip_size)
-    pips_sl = calculate_pips(entry_low, sl, pip_size)
+    pips_tp1 = calculate_pips(entry_low, tp_prices[0], pip_size, symbol)
+    pips_tp2 = calculate_pips(entry_low, tp_prices[1], pip_size, symbol)
+    pips_tp3 = calculate_pips(entry_low, tp_prices[2], pip_size, symbol)
+    pips_sl = calculate_pips(entry_low, sl, pip_size, symbol)
 
-    done = "Done" if data.get('tp1_done') else "Target"
-    btn_tp1 = types.InlineKeyboardButton(f"{done} TP1: {pips_tp1} PIPS {emoji}", callback_data=f"tp1_{msg_id}")
-
-    done = "Done" if data.get('tp2_done') else "Target"
-    btn_tp2 = types.InlineKeyboardButton(f"{done} TP2: {pips_tp2} PIPS {emoji}", callback_data=f"tp2_{msg_id}")
-
-    done = "Done" if data.get('tp3_done') else "Target"
-    btn_tp3 = types.InlineKeyboardButton(f"{done} TP3: {pips_tp3} PIPS {emoji}", callback_data=f"tp3_{msg_id}")
-
-    done = "Done" if data.get('tp4_done') else "Swing"
-    btn_tp4 = types.InlineKeyboardButton(f"{done} TP4: SWING {emoji}", callback_data=f"tp4_{msg_id}")
-
-    hit = "Hit" if data.get('sl_hit') else "Stop"
-    btn_sl = types.InlineKeyboardButton(f"{hit} SL: {pips_sl} PIPS", callback_data=f"sl_{msg_id}")
+    # أزرار مع Done + إيموجي
+    btn_tp1 = types.InlineKeyboardButton(
+        f"{'Done TP1' if data.get('tp1_done') else 'TP1'}: {pips_tp1} PIPS {emoji}",
+        callback_data=f"tp1_{msg_id}"
+    )
+    btn_tp2 = types.InlineKeyboardButton(
+        f"{'Done TP2' if data.get('tp2_done') else 'TP2'}: {pips_tp2} PIPS {emoji}",
+        callback_data=f"tp2_{msg_id}"
+    )
+    btn_tp3 = types.InlineKeyboardButton(
+        f"{'Done TP3' if data.get('tp3_done') else 'TP3'}: {pips_tp3} PIPS {emoji}",
+        callback_data=f"tp3_{msg_id}"
+    )
+    btn_tp4 = types.InlineKeyboardButton(
+        f"{'Done TP4: SWING' if data.get('tp4_done') else 'TP4: SWING'} {emoji}",
+        callback_data=f"tp4_{msg_id}"
+    )
+    btn_sl = types.InlineKeyboardButton(
+        f"{'Hit SL' if data.get('sl_hit') else 'SL'}: {pips_sl} PIPS",
+        callback_data=f"sl_{msg_id}"
+    )
 
     markup.add(btn_tp1, btn_tp2, btn_tp3, btn_tp4, btn_sl)
     return markup
@@ -137,7 +141,7 @@ def handle_callback(call):
     elif action == 'tp4': data['tp4_done'] = True
     elif action == 'sl': data['sl_hit'] = True
 
-    # إعادة بناء النص
+    # إعادة بناء النص مع Done + إيموجي
     lines = call.message.text.split('\n')
     new_lines = []
     for line in lines:
