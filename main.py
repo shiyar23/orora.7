@@ -1,8 +1,8 @@
 import telebot
 import time
 import logging
-import types
 import os
+from telebot import types  # ← هذا السطر الجديد
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
