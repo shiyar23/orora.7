@@ -264,7 +264,7 @@ def process_trade_type(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
     trade_type = message.text.upper()
-    if trade_type not in ['🟢BUY', '🔴SELL', '🟢BUY LIMIT', '🔴SELL LIMIT']:
+    if trade_type not in ['BUY', 'SELL', 'BUY LIMIT', 'SELL LIMIT']:
         send_and_save_message(chat_id, "*اختر BUY, SELL, BUY LIMIT أو SELL LIMIT فقط.*", buy_sell_keyboard(), user_id)
         bot.register_next_step_handler(message, process_trade_type)
         return
