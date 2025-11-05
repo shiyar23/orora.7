@@ -147,13 +147,13 @@ def handle_callback(call):
     new_lines = []
     for line in lines:
         if 'TP1:' in line and action == 'tp1':
-            line = f"Done TP1: {data['tp_prices'][0]:.{COMMODITIES[data['commodity']][2]}f}"
+            line = f"✅Done TP1: {data['tp_prices'][0]:.{COMMODITIES[data['commodity']][2]}f}"
         elif 'TP2:' in line and action == 'tp2':
-            line = f"Done TP2: {data['tp_prices'][1]:.{COMMODITIES[data['commodity']][2]}f}"
+            line = f"✅Done TP2: {data['tp_prices'][1]:.{COMMODITIES[data['commodity']][2]}f}"
         elif 'TP3:' in line and action == 'tp3':
-            line = f"Done TP3: {data['tp_prices'][2]:.{COMMODITIES[data['commodity']][2]}f}"
+            line = f"✅Done TP3: {data['tp_prices'][2]:.{COMMODITIES[data['commodity']][2]}f}"
         elif 'TP4:' in line and action == 'tp4':
-            line = "Done TP4: SWING"
+            line = "✅Done TP4: SWING"
         elif 'SL:' in line and action == 'sl':
             line = line.replace("PROHIBITED", "HIT")
         new_lines.append(line)
@@ -304,7 +304,7 @@ def generate_and_send_setup(user_id, chat_id):
     direction = 1 if is_buy else -1
 
     # إيموجي الاتجاه
-    direction_emoji = "🔴" if is_buy else "🟢"
+    direction_emoji = "🟢" if is_buy else "🔴"
 
     if symbol in ["XAUUSD", "BTCUSD", "ETHUSD"]:
         entry_low = round(entry_price - 1.5 if is_buy else entry_price, 2)
@@ -334,7 +334,7 @@ def generate_and_send_setup(user_id, chat_id):
     output += f"CHECK <b>☑️TP2:</b> {tp2:.{decimals}f}\n"
     output += f"CHECK <b>☑️TP3:</b> {tp3:.{decimals}f}\n"
     output += f"CHECK <b>☑️TP4: SWING</b>\n\n"
-    output += f"WARNING <i>⚠️تنويه هام:يجب الالتزام الصارم بإجراءات وضوابط إدارة رأس المال المقررة. 📊💰</i> Chart Money Bag"
+    output += <i>⚠️تنويه هام:يجب الالتزام الصارم بإجراءات وضوابط إدارة رأس المال المقررة. 📊💰</i>
 
     msg = send_and_save_message(chat_id, output, user_id=user_id)
     if msg:
