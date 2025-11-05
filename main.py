@@ -172,16 +172,20 @@ def handle_callback(call):
         data['swing_done'] = True
         was_done = True
 
+# تعديل SL
+    elif action == 'edit_sl':
+        user_data[user_id]['waiting_for'] = {'type': 'sl', 'msg_id': msg_id}
+        # أظهر رسالة منبثقة + أخفِ الـ Loading فورًا
+        bot.answer_callback_query(call.id, "أدخل سعر SL الجديد في الدردشة:", show_alert=True)
+        # أرسل رسالة توجيهية في الدردشة
+        bot.send_message(call.message.chat.id, "أدخل سعر وقف الخسارة الجديد (SL):", reply_to_message_id=call.message.message_id)
+        return
+    
     # إضافة TP
     elif action == 'add_tp':
         user_data[user_id]['waiting_for'] = {'type': 'tp', 'msg_id': msg_id}
-        bot.answer_callback_query(call.id, "أدخل سعر الهدف الجديد (TP):")
-        return
-
-    # تعديل SL
-    elif action == 'edit_sl':
-        user_data[user_id]['waiting_for'] = {'type': 'sl', 'msg_id': msg_id}
-        bot.answer_callback_query(call.id, "أدخل سعر SL الجديد:")
+        bot.answer_callback_query(call.id, "أدخل سعر الهدف الجديد (TP):", show_alert=True)
+        bot.send_message(call.message.chat.id, "أدخل سعر الهدف الجديد (TP):", reply_to_message_id=call.message.message_id)
         return
 
     if not was_done and action in ['tp1', 'tp2', 'tp3', 'sl', 'swing'] or action.startswith('tp'):
