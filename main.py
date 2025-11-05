@@ -203,7 +203,7 @@ def handle_callback(call):
                           f"TP{action[2]}: {data['tp_prices'][idx]:.{COMMODITIES[symbol][2]}f}"
     elif action == 'sl':
         pips = calculate_pips(data['entry_low'], data['sl'], COMMODITIES[symbol][3], symbol)
-        update_text = f"<b>Hit SL: {pips} PIPS</b>\n" \
+        update_text = f"<b>❌Hit SL: {pips} PIPS</b>\n" \
                       f"<b>{name} {trade_type}</b>\n" \
                       f"Entry: {data['entry_low']:.{COMMODITIES[symbol][2]}f}\n" \
                       f"SL: {data['sl']:.{COMMODITIES[symbol][2]}f}"
@@ -329,7 +329,7 @@ def generate_and_send_setup(user_id, chat_id):
 
     output = f"SETUP: {name} {emoji} › {display_type}\n\n"
     output += f"{entry_display}\n"
-    output += f"<b>SL:</b> {sl:.{decimals}f} PROHIBITED\n\n"
+    output += f"<b>SL:</b> {sl:.{decimals}f}❌\n"
     output += f"CHECK <b>☑️TP1:</b> {tp1:.{decimals}f}\n"
     output += f"CHECK <b>☑️TP2:</b> {tp2:.{decimals}f}\n"
     output += f"CHECK <b>☑️TP3:</b> {tp3:.{decimals}f}\n"
