@@ -226,10 +226,12 @@ def start(message):
 def process_commodity(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
-    selected = next((k for k, v in COMMODITIES.items() if f"{v[0]} {EMOJI_MAP.get(v[1], 'Chart')}" in m.text), None)
+    # السطر المُصحح:
+    selected = next((k for k, v in COMMODITIES.items() if f"{v[0]} {EMOJI_MAP.get(v[1], 'Chart')}" in message.text), None)
     if not selected:
         send_and_save_message(chat_id, "*اختر من القائمة.*", commodity_keyboard(), user_id)
         return
+    # باقي الكود...
     user_data.setdefault(user_id, {'bot_messages': []})
     code = COMMODITIES[selected][1]
     user_data[user_id].update({
