@@ -4,22 +4,18 @@ import logging
 import types
 import os
 
-# === إعدادات البوت ===
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN غير موجود! أضفه في Variables على Railway.")
+    raise ValueError("BOT_TOKEN غير موجود! أضفه في Railway.")
 
 bot = telebot.TeleBot(BOT_TOKEN)
-CHANNEL_USERNAME = os.getenv('CHANNEL_USERNAME', '@the_hunter_of_forex')  # يمكن تغييره من Railway
+CHANNEL_USERNAME = os.getenv('CHANNEL_USERNAME', '@the_hunter_of_forex')
 
-# === Logging ===
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === بيانات المستخدم + حفظ معرف الرسالة ===
 user_data = {}
 
-# === السلع مع الإيموجي الصحيحة ===
 COMMODITIES = {
     "EURUSD": ("EUR/USD", "EUR", 5, 0.0001, 50),
     "GBPUSD": ("GBP/USD", "GBP", 5, 0.0001, 50),
@@ -34,7 +30,6 @@ COMMODITIES = {
     "ETHUSD": ("ETHEREUM", "ETH", 2, 1.0, 50.0),
 }
 
-# === لوحات المفاتيح ===
 def commodity_keyboard():
     markup = types.ReplyKeyboardMarkup(row_width=3, resize_keyboard=True)
     for name, emj, _, _, _ in COMMODITIES.values():
@@ -53,13 +48,9 @@ def main_menu_keyboard():
     markup.add("تنظيف الدردشة")
     return markup
 
-# === إرسال الرسائل ===
 def send_and_save_message(chat_id, text, reply_markup=None, user_id=None, parse_mode='HTML'):
     try:
-        msg = bot.send_message(
-            chat_id, text, reply_markup=reply_markup,
-            parse_mode=parse_mode, disable_web_page_preview=True
-        )
+        msg = bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode=parse_mode, disable_web_page_preview=True)
         if user_id and user_id in user_data:
             user_data[user_id]['bot_messages'].append(msg.message_id)
             user_data[user_id]['last_setup_msg_id'] = msg.message_id
@@ -68,13 +59,11 @@ def send_and_save_message(chat_id, text, reply_markup=None, user_id=None, parse_
         logger.error(f"فشل الإرسال: {e}")
         return None
 
-# === حساب النقاط (PIPS) ===
 def calculate_pips(entry, target, pip_size):
     diff = abs(target - entry)
     pips = int(round(diff / pip_size, 0))
     return pips
 
-# === إنشاء أزرار تفاعلية ===
 def create_inline_buttons(data):
     symbol = data['commodity']
     entry_low = data['entry_low']
@@ -84,7 +73,6 @@ def create_inline_buttons(data):
     direction = data['direction']
 
     markup = types.InlineKeyboardMarkup(row_width=1)
-
     pips_tp1 = calculate_pips(entry_low, tp_prices[0], pip_size)
     pips_tp2 = calculate_pips(entry_low, tp_prices[1], pip_size)
     pips_tp3 = calculate_pips(entry_low, tp_prices[2], pip_size)
@@ -99,93 +87,50 @@ def create_inline_buttons(data):
     markup.add(btn_tp1, btn_tp2, btn_tp3, btn_tp4, btn_sl)
     return markup
 
-# === معالجة الأزرار ===
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
     user_id = call.from_user.id
-    if user_id not in user_data:
-        return
-
+    if user_id not in user_data: return
     data = user_data[user_id]
     msg_id = data.get('last_setup_msg_id')
-    if not msg_id or call.message.message_id != msg_id:
-        return
-
+    if not msg_id or call.message.message_id != msg_id: return
     action = call.data.split('_')[0]
-    msg_id_key = call.data.split('_')[1]
+    if call.data.split('_')[1] != str(msg_id): return
 
-    if msg_id_key != str(msg_id):
-        return
-
-    new_text = call.message.text
-    lines = new_text.split('\n')
-    updated = False
-
+    lines = call.message.text.split('\n')
     for i, line in enumerate(lines):
-        if action == 'tp1' and "TP1" in line:
-            lines[i] = line.replace("TP1", "TP1 Done")
-            updated = True
-        elif action == 'tp2' and "TP2" in line:
-            lines[i] = line.replace("TP2", "TP2 Done")
-            updated = True
-        elif action == 'tp3' and "TP3" in line:
-            lines[i] = line.replace("TP3", "TP3 Done")
-            updated = True
-        elif action == 'tp4' and "TP4" in line:
-            lines[i] = line.replace("TP4", "TP4 Done")
-            updated = True
-        elif action == 'sl' and "SL" in line:
-            lines[i] = line.replace("SL", "SL Hit")
-            updated = True
+        if action == 'tp1' and "TP1" in line: lines[i] = line.replace("TP1", "TP1 Done")
+        elif action == 'tp2' and "TP2" in line: lines[i] = line.replace("TP2", "TP2 Done")
+        elif action == 'tp3' and "TP3" in line: lines[i] = line.replace("TP3", "TP3 Done")
+        elif action == 'tp4' and "TP4" in line: lines[i] = line.replace("TP4", "TP4 Done")
+        elif action == 'sl' and "SL" in line: lines[i] = line.replace("SL", "SL Hit")
 
-    if updated:
-        try:
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text='\n'.join(lines),
-                parse_mode='HTML'
-            )
-            bot.answer_callback_query(call.id, "تم التحديث!")
-        except Exception as e:
-            logger.error(f"فشل التحديث: {e}")
+    try:
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text='\n'.join(lines), parse_mode='HTML')
+        bot.answer_callback_query(call.id, "تم!")
+    except Exception as e:
+        logger.error(f"فشل التحديث: {e}")
 
-# === بدء البوت ===
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
     user_data[user_id] = {'bot_messages': []}
-    send_and_save_message(
-        chat_id,
-        "<b>مرحبًا! إعداد صفقات احترافي</b>\n"
-        "اختر السلعة:",
-        commodity_keyboard(),
-        user_id
-    )
+    send_and_save_message(chat_id, "<b>مرحبًا! إعداد صفقات احترافي</b>\nاختر السلعة:", commodity_keyboard(), user_id)
 
-# === اختيار السلعة ===
 @bot.message_handler(func=lambda m: any(f"{v[0]} {v[1]}" in m.text for v in COMMODITIES.values()))
 def process_commodity(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
-    selected = None
-    for symbol, (name, emj, _, _, _) in COMMODITIES.items():
-        if f"{name} {emj}" in message.text:
-            selected = symbol
-            break
+    selected = next((k for k, v in COMMODITIES.items() if f"{v[0]} {v[1]}" in message.text), None)
     if not selected:
         send_and_save_message(chat_id, "*اختر من القائمة.*", commodity_keyboard(), user_id)
         return
-
     user_data.setdefault(user_id, {'bot_messages': []})
-    user_data[user_id]['commodity'] = selected
-    user_data[user_id]['display_name'] = COMMODITIES[selected][0]
-    user_data[user_id]['emoji'] = COMMODITIES[selected][1]
+    user_data[user_id].update({'commodity': selected, 'display_name': COMMODITIES[selected][0], 'emoji': COMMODITIES[selected][1]})
     send_and_save_message(chat_id, f"<b>تم اختيار {COMMODITIES[selected][0]} {COMMODITIES[selected][1]}</b>\n\nاختر نوع الصفقة:", buy_sell_keyboard(), user_id)
     bot.register_next_step_handler(message, process_trade_type)
 
-# === باقي الدوال ===
 def process_trade_type(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
@@ -219,7 +164,6 @@ def process_stop_loss(message):
         send_and_save_message(chat_id, "*سعر SL غير صحيح.*", types.ReplyKeyboardRemove(), user_id)
         bot.register_next_step_handler(message, process_stop_loss)
 
-# === إنشاء الصفقة + أزرار تفاعلية ===
 def generate_and_send_setup(user_id, chat_id):
     data = user_data[user_id]
     symbol = data['commodity']
@@ -229,29 +173,19 @@ def generate_and_send_setup(user_id, chat_id):
     trade_type = data.get('trade_type', 'BUY')
     direction = 1 if trade_type == 'BUY' else -1
 
-    # نطاق الدخول
     if symbol in ["XAUUSD", "BTCUSD", "ETHUSD"]:
-        entry_low = round(entry_price, 2)
-        entry_high = round(entry_price + (3 if trade_type == 'SELL' else -3), 2)
-        if trade_type == 'BUY':
-            entry_low, entry_high = round(entry_price - 1.5, 2), round(entry_price + 1.5, 2)
+        entry_low = round(entry_price - 1.5 if trade_type == 'BUY' else entry_price, 2)
+        entry_high = round(entry_price + 1.5 if trade_type == 'BUY' else entry_price + 3, 2)
     else:
         entry_low = round(entry_price - 0.00015, decimals)
         entry_high = round(entry_price + 0.00015, decimals)
 
-    # SL
-    sl = stop_loss
-    if trade_type == 'SELL':
-        sl = round(max(entry_high + pip_size, stop_loss), decimals)
-    else:
-        sl = round(min(entry_low - pip_size, stop_loss), decimals)
+    sl = round(max(entry_high + pip_size, stop_loss) if trade_type == 'SELL' else min(entry_low - pip_size, stop_loss), decimals)
 
-    # TP
     tp1 = round(entry_low - (tp_step * direction), decimals)
     tp2 = round(tp1 - (tp_step * direction), decimals)
     tp3 = round(tp2 - (tp_step * direction), decimals)
 
-    # الرسالة
     output = f"<b>SETUP: {name} {emoji} › {trade_type}</b>\n\n"
     output += f"<b>Entry:</b> {entry_low:.{decimals}f} - {entry_high:.{decimals}f}\n"
     output += f"<b>SL:</b> {sl:.{decimals}f} PROHIBITED\n\n"
@@ -261,31 +195,17 @@ def generate_and_send_setup(user_id, chat_id):
     output += f"CHECK <b>TP4: SWING</b>\n\n"
     output += f"WARNING <i>ليس نصيحة مالية. التداول محفوف بالمخاطر.</i>"
 
-    # حفظ البيانات للأزرار
-    msg = send_and_save_message(chat_id, output, reply_markup=None, user_id=user_id)
+    msg = send_and_save_message(chat_id, output, user_id=user_id)
     if msg:
-        data['msg_id'] = msg.message_id
-        data['entry_low'] = entry_low
-        data['tp_prices'] = [tp1, tp2, tp3]
-        data['sl'] = sl
-        data['direction'] = direction
+        data.update({'msg_id': msg.message_id, 'entry_low': entry_low, 'tp_prices': [tp1, tp2, tp3], 'sl': sl, 'direction': direction})
+        bot.edit_message_reply_markup(chat_id, msg.message_id, reply_markup=create_inline_buttons(data))
 
-        inline_markup = create_inline_buttons(data)
-        bot.edit_message_reply_markup(chat_id, msg.message_id, reply_markup=inline_markup)
-
-    # نشر في القناة (بدون أزرار)
     if CHANNEL_USERNAME:
         try:
-            bot.send_message(
-                chat_id=CHANNEL_USERNAME,
-                text=f"<b>صفقة جديدة - {name} {emoji} {trade_type}</b>\n\n" + output,
-                parse_mode='HTML',
-                disable_web_page_preview=True
-            )
+            bot.send_message(CHANNEL_USERNAME, f"<b>صفقة جديدة - {name} {emoji} {trade_type}</b>\n\n" + output, parse_mode='HTML', disable_web_page_preview=True)
         except Exception as e:
             logger.error(f"فشل النشر: {e}")
 
-# === أوامر إضافية ===
 @bot.message_handler(func=lambda m: m.text == 'بدء جديد')
 def new_setup(message):
     user_id = message.from_user.id
@@ -313,7 +233,6 @@ def clean_chat(message):
     except: pass
     send_and_save_message(chat_id, "<b>تم التنظيف!</b>", main_menu_keyboard(), user_id)
 
-# === تشغيل البوت ===
 if __name__ == "__main__":
     logger.info("البوت يعمل الآن على Railway!")
     while True:
