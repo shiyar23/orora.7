@@ -349,8 +349,7 @@ def generate_and_send_setup(user_id, chat_id):
     output += f"CHECK <b>☑️TP2:</b> {tp2:.{decimals}f}\n"
     output += f"CHECK <b>☑️TP3:</b> {tp3:.{decimals}f}\n"
     output += f"CHECK <b>☑️TP4: SWING</b>\n\n"
-    output += f"WARNING <i>⚠️تنويه هام:
-يجب الالتزام الصارم بإجراءات وضوابط إدارة رأس المال المقررة. 📊💰</i>"
+    output += f"WARNING <i>⚠️تنويه هام:يجب الالتزام الصارم بإجراءات وضوابط إدارة رأس المال المقررة. 📊💰</i>"
 
     msg = send_and_save_message(chat_id, output, user_id=user_id)
     if msg:
