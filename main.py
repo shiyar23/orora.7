@@ -9,7 +9,7 @@ if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN غير موجود! أضفه في Railway.")
 
 bot = telebot.TeleBot(BOT_TOKEN)
-CHANNEL_USERNAME = os.getenv('CHANNEL_USERNAME', '@the_hunter_of_forex')
+CHANNEL_USERNAME = os.getenv('CHANNEL_USERNAME', '@aicodtrading')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -329,7 +329,7 @@ def generate_and_send_setup(user_id, chat_id):
 
     output = f"SETUP: {name} {emoji} › {display_type}\n\n"
     output += f"{entry_display}\n"
-    output += f"<b>SL:</b> {sl:.{decimals}f}❌\n"
+    output += f"<b>SL:</b> {sl:.{decimals}f}❌\n\n"
     output += f"CHECK <b>☑️TP1:</b> {tp1:.{decimals}f}\n"
     output += f"CHECK <b>☑️TP2:</b> {tp2:.{decimals}f}\n"
     output += f"CHECK <b>☑️TP3:</b> {tp3:.{decimals}f}\n"
