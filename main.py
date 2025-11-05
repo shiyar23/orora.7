@@ -301,7 +301,9 @@ def generate_and_send_setup(user_id, chat_id):
 
     is_limit = 'LIMIT' in trade_type
     is_buy = 'BUY' in trade_type
-# إيموجي الاتجاه
+    direction = 1 if is_buy else -1
+
+    # إيموجي الاتجاه
     direction_emoji = "🔴" if is_buy else "🟢"
 
     if symbol in ["XAUUSD", "BTCUSD", "ETHUSD"]:
@@ -319,15 +321,9 @@ def generate_and_send_setup(user_id, chat_id):
 
     sl = round(max(entry_high + pip_size, stop_loss) if not is_buy else min(entry_low - pip_size, stop_loss), decimals)
 
-    # الحل الصحيح: BUY = صعود، SELL = هبوط
-    if is_buy:
-        tp1 = round(entry_low + tp_step, decimals)
-        tp2 = round(tp1 + tp_step, decimals)
-        tp3 = round(tp2 + tp_step, decimals)
-    else:
-        tp1 = round(entry_low - tp_step, decimals)
-        tp2 = round(tp1 - tp_step, decimals)
-        tp3 = round(tp2 - tp_step, decimals)
+    tp1 = round(entry_low - (tp_step * direction), decimals)
+    tp2 = round(tp1 - (tp_step * direction), decimals)
+    tp3 = round(tp2 - (tp_step * direction), decimals)
 
     display_type = f"{trade_type} {direction_emoji}"
 
