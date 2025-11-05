@@ -24,13 +24,13 @@ EMOJI_MAP = {
 }
 
 COMMODITIES = {
-    "EURUSD": ("EUR/USD", "EUR", 5, 0.0001, 50),
-    "GBPUSD": ("GBP/USD", "GBP", 5, 0.0001, 50),
+    "EURUSD": ("EUR/USD", "EUR", 5, 0.0100, 50),
+    "GBPUSD": ("GBP/USD", "GBP", 5, 0.0100, 50),
     "USDJPY": ("USD/JPY", "JPY", 3, 0.01, 5.0),
-    "AUDUSD": ("AUD/USD", "AUD", 5, 0.0001, 50),
-    "USDCAD": ("USD/CAD", "CAD", 5, 0.0001, 50),
-    "NZDUSD": ("NZD/USD", "NZD", 5, 0.0001, 50),
-    "USDCHF": ("USD/CHF", "CHF", 5, 0.0001, 50),
+    "AUDUSD": ("AUD/USD", "AUD", 5, 0.0100, 50),
+    "USDCAD": ("USD/CAD", "CAD", 5, 0.0100, 50),
+    "NZDUSD": ("NZD/USD", "NZD", 5, 0.0100, 50),
+    "USDCHF": ("USD/CHF", "CHF", 5, 0.0100, 50),
     "XAUUSD": ("GOLD", "GOLD", 2, 1.0, 5.0),
     "XAGUSD": ("SILVER", "SILVER", 3, 0.01, 0.5),
     "BTCUSD": ("BITCOIN", "BTC", 2, 1.0, 100.0),
