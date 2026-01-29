@@ -95,18 +95,16 @@ def create_inline_buttons(data, is_admin=True):
         markup.add(types.InlineKeyboardButton("🎯 تحقيق SWING", callback_data="hit_swing"))
     
     markup.add(types.InlineKeyboardButton("🛡️ تأمين (Trail SL)", callback_data="trail_menu"))
-    markup.add(types.InlineKeyboardButton("⚙️ تعديل الصفقة / SWING", callback_data="main_edit"))
+    markup.add(types.InlineKeyboardButton("⚙️ تعديل الصفقة / اهداف إضافية", callback_data="main_edit"))
     markup.add(types.InlineKeyboardButton("✖️ إغلاق الصفقة نهائياً", callback_data="close_trade"))
     
-    # --- جلب الأسماء الحقيقية للقنوات للأزرار ---
     for channel in CHANNELS_LIST:
         if str(channel) not in data.get('published_channels', []):
             try:
                 chat_info = bot.get_chat(channel)
-                channel_name = chat_info.title # هذا هو الاسم الحقيقي
+                channel_name = chat_info.title
             except:
-                channel_name = str(channel) # احتياطي في حال فشل الجلب
-            
+                channel_name = str(channel)
             markup.add(types.InlineKeyboardButton(f"📢 نشر في: {channel_name}", callback_data=f"send_to_{channel}"))
             
     return markup
@@ -121,14 +119,11 @@ def update_everywhere(user_id):
     if user_id not in user_data: return
     data = user_data[user_id]
     text = generate_setup_text(data)
-    
     try:
         bot.edit_message_text(text, data['chat_id'], data['msg_id'], reply_markup=create_inline_buttons(data), parse_mode='HTML')
     except: pass
-    
     for channel, m_id in data.get('channel_msgs', {}).items():
-        try:
-            bot.edit_message_text(text, channel, m_id, reply_markup=None, parse_mode='HTML')
+        try: bot.edit_message_text(text, channel, m_id, reply_markup=None, parse_mode='HTML')
         except: pass
 
 # --- المعالجات الرئيسية ---
@@ -180,6 +175,7 @@ def set_sl_final(message):
         symbol = data['commodity']
         step = COMMODITIES[symbol][4]
         direction = 1 if "BUY" in data['trade_type'] else -1
+        # الأهداف الثلاثة الأولى تلقائية
         data['tp_prices'] = [round(data['entry_low'] + (i+1)*step*direction, COMMODITIES[symbol][2]) for i in range(3)]
         
         msg = bot.send_message(message.chat.id, "تم إنشاء الصفقة بنجاح. جاري التحميل...", parse_mode='HTML')
@@ -196,7 +192,6 @@ def callback_router(call):
     data = user_data[uid]
     symbol = data['commodity']
 
-    # --- إدارة النشر والتحكم ---
     if call.data == "activate_trade":
         data['is_active'] = True
         update_everywhere(uid)
@@ -232,9 +227,15 @@ def callback_router(call):
 
     elif call.data == "main_edit":
         markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("➕ إضافة هدف جديد (TP+)", callback_data="add_manual_tp"))
         markup.add(types.InlineKeyboardButton("🎯 إضافة/تعديل هدف SWING", callback_data="edit_swing"))
         markup.add(types.InlineKeyboardButton("🔙 رجوع", callback_data="back_to_main"))
         bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+    elif call.data == "add_manual_tp":
+        next_tp = len(data['tp_prices']) + 1
+        bot.send_message(call.message.chat.id, f"أرسل سعر الهدف رقم {next_tp}:")
+        bot.register_next_step_handler_by_chat_id(call.message.chat.id, process_add_tp)
 
     elif call.data == "edit_swing":
         bot.send_message(call.message.chat.id, "أرسل سعر هدف الـ SWING الآن:")
@@ -250,16 +251,23 @@ def callback_router(call):
 
     elif call.data.startswith("send_to_"):
         target = call.data.split('_')[2]
-        # تحويل المعرف لنوع int إذا كان رقماً
         if target.replace('-', '').isdigit(): target = int(target)
-        
         try:
             sent = bot.send_message(target, generate_setup_text(data), parse_mode='HTML')
             data['channel_msgs'][target] = sent.message_id
             data['published_channels'].append(str(target))
             update_everywhere(uid)
-        except Exception as e:
-            bot.send_message(call.message.chat.id, f"❌ فشل النشر في {target}. تأكد أن البوت مسؤول هناك.")
+        except: pass
+
+def process_add_tp(message):
+    uid = message.from_user.id
+    try:
+        new_tp = float(message.text)
+        user_data[uid]['tp_prices'].append(new_tp)
+        update_everywhere(uid)
+        bot.send_message(message.chat.id, f"✅ تم إضافة الهدف رقم {len(user_data[uid]['tp_prices'])}.")
+    except:
+        bot.send_message(message.chat.id, "⚠️ خطأ في السعر، لم يتم إضافة الهدف.")
 
 def process_swing_input(message):
     uid = message.from_user.id
