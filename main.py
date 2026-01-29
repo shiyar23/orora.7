@@ -221,7 +221,7 @@ def callback_router(call):
 
     elif call.data == "trail_menu":
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🛡️ Entry (BE)", callback_data="apply_trail_0"))
+        markup.add(types.InlineKeyboardButton("🛡️ Entry (Break Even)", callback_data="apply_trail_0"))
         for i in range(len(data['tp_prices'])):
             markup.add(types.InlineKeyboardButton(f"🛡️ TP{i+1}", callback_data=f"apply_trail_{i+1}"))
         markup.add(types.InlineKeyboardButton("🔙 رجوع", callback_data="back_to_main"))
@@ -233,7 +233,7 @@ def callback_router(call):
         data['sl'] = data['entry_low'] if idx == 0 else data['tp_prices'][idx-1]
         data['sl_at'] = "BE" if idx == 0 else f"TP{idx}"
         update_everywhere(uid)
-        send_update_to_channels(data, f"🚨 <b>{symbol}</b>\n<b>تم نقل الستوب لوز إلى {data['sl_at']} 🛡️</b>")
+        send_update_to_channels(data, f"🚨 <b>{symbol}</b>\n<b>تم حجز الأرباح ونقل الستوب إلى  {data['sl_at']} 🛡️</b>")
 
     elif call.data == "main_edit":
         markup = types.InlineKeyboardMarkup()
