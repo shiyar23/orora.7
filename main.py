@@ -39,10 +39,17 @@ COMMODITIES = {
 
 def calculate_pips(entry, target, pip_size, symbol):
     try:
-        diff = abs(float(target) - float(entry))
-        if "XAU" in symbol or "GOLD" in symbol: return int(round(diff * 10, 0))
+        # التأكد من تحويل المدخلات إلى أرقام
+        entry_f = float(entry)
+        target_f = float(target)
+        diff = abs(target_f - entry_f)
+        
+        if "XAU" in symbol or "GOLD" in symbol: 
+            return int(round(diff * 10, 0))
         return int(round(diff / pip_size, 0))
-    except: return 0
+    except Exception as e:
+        logging.error(f"Error calculating pips: {e}")
+        return 0
 
 def generate_setup_text(data):
     symbol = data['commodity']
@@ -91,8 +98,10 @@ def create_inline_buttons(data, is_admin=True):
             pips = calculate_pips(data['entry_low'], tp_price, COMMODITIES[symbol][3], symbol)
             markup.add(types.InlineKeyboardButton(f"✅ تحقيق الهدف {tp_num} (+{pips})", callback_data=f"hit_tp_{tp_num}"))
 
+    # زر تحقيق الـ SWING مع حساب النقاط
     if data.get('swing_price') and not data.get('tp_swing_done'):
-        markup.add(types.InlineKeyboardButton("🎯 تحقيق SWING", callback_data="hit_swing"))
+        swing_pips = calculate_pips(data['entry_low'], data['swing_price'], COMMODITIES[symbol][3], symbol)
+        markup.add(types.InlineKeyboardButton(f"🎯 تحقيق SWING (+{swing_pips})", callback_data="hit_swing"))
     
     markup.add(types.InlineKeyboardButton("🛡️ تأمين (Trail SL)", callback_data="trail_menu"))
     markup.add(types.InlineKeyboardButton("⚙️ تعديل الصفقة / اهداف إضافية", callback_data="main_edit"))
@@ -175,7 +184,6 @@ def set_sl_final(message):
         symbol = data['commodity']
         step = COMMODITIES[symbol][4]
         direction = 1 if "BUY" in data['trade_type'] else -1
-        # الأهداف الثلاثة الأولى تلقائية
         data['tp_prices'] = [round(data['entry_low'] + (i+1)*step*direction, COMMODITIES[symbol][2]) for i in range(3)]
         
         msg = bot.send_message(message.chat.id, "تم إنشاء الصفقة بنجاح. جاري التحميل...", parse_mode='HTML')
@@ -206,8 +214,10 @@ def callback_router(call):
 
     elif call.data == "hit_swing":
         data['tp_swing_done'] = True
+        # حساب النقاط للـ Swing
+        pips = calculate_pips(data['entry_low'], data['swing_price'], COMMODITIES[symbol][3], symbol)
         update_everywhere(uid)
-        send_update_to_channels(data, f"<b>🎯 تم تحقيق هدف الـ SWING لصفقة {symbol} 🏆</b>")
+        send_update_to_channels(data, f"<b>🎯 تم تحقيق هدف الـ SWING لصفقة {symbol}: <b>+{pips}</b> نقطة 🏆</b>")
 
     elif call.data == "trail_menu":
         markup = types.InlineKeyboardMarkup()
@@ -267,14 +277,19 @@ def process_add_tp(message):
         update_everywhere(uid)
         bot.send_message(message.chat.id, f"✅ تم إضافة الهدف رقم {len(user_data[uid]['tp_prices'])}.")
     except:
-        bot.send_message(message.chat.id, "⚠️ خطأ في السعر، لم يتم إضافة الهدف.")
+        bot.send_message(message.chat.id, "⚠️ خطأ في السعر.")
 
 def process_swing_input(message):
     uid = message.from_user.id
     if uid in user_data:
-        user_data[uid]['swing_price'] = message.text
-        update_everywhere(uid)
-        bot.send_message(message.chat.id, "✅ تم تحديث سعر الـ SWING.")
+        try:
+            # التأكد من أنه رقم
+            float(message.text)
+            user_data[uid]['swing_price'] = message.text
+            update_everywhere(uid)
+            bot.send_message(message.chat.id, "✅ تم تحديث سعر الـ SWING بنجاح.")
+        except:
+            bot.send_message(message.chat.id, "⚠️ يرجى إرسال رقم صحيح للسعر.")
 
 if __name__ == "__main__":
     bot.infinity_polling()
