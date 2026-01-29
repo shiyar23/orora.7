@@ -5,7 +5,6 @@ from telebot import types
 
 # --- إعدادات البيئة ---
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-# تأكد من وضع معرفات القنوات بشكل صحيح (ID أو Username)
 CHANNELS_RAW = os.getenv('CHANNELS', '@aicodtrading,-1003715686424')
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -99,9 +98,16 @@ def create_inline_buttons(data, is_admin=True):
     markup.add(types.InlineKeyboardButton("⚙️ تعديل الصفقة / SWING", callback_data="main_edit"))
     markup.add(types.InlineKeyboardButton("✖️ إغلاق الصفقة نهائياً", callback_data="close_trade"))
     
+    # --- جلب الأسماء الحقيقية للقنوات للأزرار ---
     for channel in CHANNELS_LIST:
         if str(channel) not in data.get('published_channels', []):
-            markup.add(types.InlineKeyboardButton(f"📢 نشر في {channel}", callback_data=f"send_to_{channel}"))
+            try:
+                chat_info = bot.get_chat(channel)
+                channel_name = chat_info.title # هذا هو الاسم الحقيقي
+            except:
+                channel_name = str(channel) # احتياطي في حال فشل الجلب
+            
+            markup.add(types.InlineKeyboardButton(f"📢 نشر في: {channel_name}", callback_data=f"send_to_{channel}"))
             
     return markup
 
@@ -125,7 +131,7 @@ def update_everywhere(user_id):
             bot.edit_message_text(text, channel, m_id, reply_markup=None, parse_mode='HTML')
         except: pass
 
-# --- المعالجات (Step-by-Step) ---
+# --- المعالجات الرئيسية ---
 
 @bot.message_handler(commands=['start', 'new'])
 def cmd_start(message):
@@ -176,14 +182,12 @@ def set_sl_final(message):
         direction = 1 if "BUY" in data['trade_type'] else -1
         data['tp_prices'] = [round(data['entry_low'] + (i+1)*step*direction, COMMODITIES[symbol][2]) for i in range(3)]
         
-        msg = bot.send_message(message.chat.id, "تم إنشاء الصفقة بجاح. جاري التحميل...", parse_mode='HTML')
+        msg = bot.send_message(message.chat.id, "تم إنشاء الصفقة بنجاح. جاري التحميل...", parse_mode='HTML')
         data['msg_id'] = msg.message_id
         update_everywhere(uid)
     except:
         bot.send_message(message.chat.id, "خطأ، أدخل رقم صحيح للـ SL:")
         bot.register_next_step_handler(message, set_sl_final)
-
-# --- معالجة الضغط على الأزرار ---
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_router(call):
@@ -192,6 +196,7 @@ def callback_router(call):
     data = user_data[uid]
     symbol = data['commodity']
 
+    # --- إدارة النشر والتحكم ---
     if call.data == "activate_trade":
         data['is_active'] = True
         update_everywhere(uid)
@@ -223,7 +228,7 @@ def callback_router(call):
         data['sl'] = data['entry_low'] if idx == 0 else data['tp_prices'][idx-1]
         data['sl_at'] = "BE" if idx == 0 else f"TP{idx}"
         update_everywhere(uid)
-        send_update_to_channels(data, f"🚨 <b>{symbol}</b>\n<b>تم حجز الأرباح ونقل الستوب إلى {data['sl_at']} 🛡️</b>")
+        send_update_to_channels(data, f"🚨 <b>{symbol}</b>\n<b>تم نقل الستوب لوز إلى {data['sl_at']} 🛡️</b>")
 
     elif call.data == "main_edit":
         markup = types.InlineKeyboardMarkup()
@@ -245,10 +250,16 @@ def callback_router(call):
 
     elif call.data.startswith("send_to_"):
         target = call.data.split('_')[2]
+        # تحويل المعرف لنوع int إذا كان رقماً
         if target.replace('-', '').isdigit(): target = int(target)
-        sent = bot.send_message(target, generate_setup_text(data), parse_mode='HTML')
-        data['channel_msgs'][target] = sent.message_id
-        update_everywhere(uid)
+        
+        try:
+            sent = bot.send_message(target, generate_setup_text(data), parse_mode='HTML')
+            data['channel_msgs'][target] = sent.message_id
+            data['published_channels'].append(str(target))
+            update_everywhere(uid)
+        except Exception as e:
+            bot.send_message(call.message.chat.id, f"❌ فشل النشر في {target}. تأكد أن البوت مسؤول هناك.")
 
 def process_swing_input(message):
     uid = message.from_user.id
@@ -258,5 +269,4 @@ def process_swing_input(message):
         bot.send_message(message.chat.id, "✅ تم تحديث سعر الـ SWING.")
 
 if __name__ == "__main__":
-    print("البوت يعمل الآن...")
     bot.infinity_polling()
