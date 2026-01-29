@@ -190,8 +190,8 @@ def callback_router(call):
         data['sl'] = data['entry_low'] # تعديل SL لمنطقة الدخول
         update_everywhere(uid)
         
-        # تنبيه القنوات بنقل الستوب
-        be_msg = f"🚨 <b>{name}</b>\nStop Loss moved to Entry (Break Even) 🛡️"
+        # تنبيه القنوات بنقل الستوب باللغة العربية
+        be_msg = f"🚨 <b>{name}</b>\n<b>تم نقل وقف الخسارة إلى منطقة الدخول (Break Even) 🛡️</b>"
         for ch, _ in data['channel_msgs'].items():
             bot.send_message(ch, be_msg, parse_mode='HTML')
 
