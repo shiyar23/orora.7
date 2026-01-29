@@ -57,6 +57,7 @@ def generate_setup_text(data):
     sl_label = f"<b>🛡️ {data.get('sl_at', '')}</b>" if data.get('is_secured') else "<b>❌</b>"
     txt += f"<b>SL: <code><b>{data['sl']:.{decimals}f}</b></code> {sl_label}</b>\n\n"
     
+    # عرض جميع الأهداف (الأساسية والمضافة)
     for i, tp in enumerate(data['tp_prices']):
         status = "<b>✅ Done</b>" if data.get(f'tp{i+1}_done') else "<b>☑️</b>"
         txt += f"{status} <b>TP{i+1}: <code><b>{tp:.{decimals}f}</b></code></b>\n"
@@ -71,8 +72,8 @@ def generate_setup_text(data):
 def create_inline_buttons(data):
     markup = types.InlineKeyboardMarkup(row_width=1)
     symbol = data['commodity']
-    msg_id = data.get('msg_id')
 
+    # أزرار تحقيق الأهداف المتاحة
     for i, tp_price in enumerate(data['tp_prices']):
         tp_num = i + 1
         if not data.get(f'tp{tp_num}_done'):
@@ -82,6 +83,8 @@ def create_inline_buttons(data):
     if not data.get('tp_swing_done'):
         markup.add(types.InlineKeyboardButton("🎯 تحقيق SWING", callback_data="hit_swing"))
     
+    # أزرار الإدارة
+    markup.add(types.InlineKeyboardButton("➕ إضافة هدف جديد (TP+)", callback_data="add_new_tp"))
     markup.add(types.InlineKeyboardButton("🛡️ تأمين الأرباح (Trail SL)", callback_data="trail_menu"))
     markup.add(types.InlineKeyboardButton("⚙️ تعديل الصفقة", callback_data="main_edit"))
     
@@ -139,23 +142,24 @@ def set_entry(message):
         bot.send_message(message.chat.id, "<b>أدخل سعر وقف الخسارة (SL):</b>", parse_mode='HTML')
         bot.register_next_step_handler(message, set_sl_and_finish)
     except:
-        bot.send_message(message.chat.id, "⚠️ رقم غير صحيح، حاول ثانية:")
+        bot.send_message(message.chat.id, "⚠️ رقم غير صحيح:")
         bot.register_next_step_handler(message, set_entry)
 
 def set_sl_and_finish(message):
     uid = message.from_user.id
     try:
-        user_data[uid]['sl'] = float(message.text)
-        symbol = user_data[uid]['commodity']
+        data = user_data[uid]
+        data['sl'] = float(message.text)
+        symbol = data['commodity']
         step = COMMODITIES[symbol][4]
-        direction = 1 if "BUY" in user_data[uid]['trade_type'] else -1
-        user_data[uid]['tp_prices'] = [round(user_data[uid]['entry_low'] + (i+1)*step*direction, COMMODITIES[symbol][2]) for i in range(3)]
+        direction = 1 if "BUY" in data['trade_type'] else -1
+        data['tp_prices'] = [round(data['entry_low'] + (i+1)*step*direction, COMMODITIES[symbol][2]) for i in range(3)]
         
-        msg = bot.send_message(message.chat.id, generate_setup_text(user_data[uid]), parse_mode='HTML')
-        user_data[uid]['msg_id'] = msg.message_id
-        bot.edit_message_reply_markup(message.chat.id, msg.message_id, reply_markup=create_inline_buttons(user_data[uid]))
+        msg = bot.send_message(message.chat.id, generate_setup_text(data), parse_mode='HTML')
+        data['msg_id'] = msg.message_id
+        bot.edit_message_reply_markup(message.chat.id, msg.message_id, reply_markup=create_inline_buttons(data))
     except:
-        bot.send_message(message.chat.id, "⚠️ رقم غير صحيح، حاول ثانية:")
+        bot.send_message(message.chat.id, "⚠️ رقم غير صحيح:")
         bot.register_next_step_handler(message, set_sl_and_finish)
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -166,7 +170,12 @@ def callback_router(call):
     symbol = data['commodity']
     decimals = COMMODITIES[symbol][2]
 
-    if call.data == "trail_menu":
+    if call.data == "add_new_tp":
+        next_tp = len(data['tp_prices']) + 1
+        bot.send_message(call.message.chat.id, f"<b>أدخل سعر الهدف رقم {next_tp}:</b>", parse_mode='HTML')
+        bot.register_next_step_handler(call.message, process_add_tp)
+
+    elif call.data == "trail_menu":
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("🛡️ نقل للدخول (BE)", callback_data="apply_trail_0"))
         for i in range(len(data['tp_prices'])):
@@ -203,7 +212,7 @@ def callback_router(call):
         bot.register_next_step_handler(call.message, process_manual_edit, 'sl')
 
     elif call.data == "edit_swing":
-        bot.send_message(call.message.chat.id, "<b>أدخل سعر هدف SWING الجديد:</b>", parse_mode='HTML')
+        bot.send_message(call.message.chat.id, "<b>أدخل هدف SWING الجديد:</b>", parse_mode='HTML')
         bot.register_next_step_handler(call.message, process_manual_edit, 'swing_price')
 
     elif call.data.startswith("hit_tp_"):
@@ -211,27 +220,17 @@ def callback_router(call):
         data[f'tp{tp_num}_done'] = True
         tp_price = data['tp_prices'][tp_num-1]
         pips = calculate_pips(data['entry_low'], tp_price, COMMODITIES[symbol][3], symbol)
-        
         update_everywhere(uid)
-        
-        # رسالة التنبيه للقنوات (كانت مفقودة في كودك)
         target_msg = (f"<b>✅ تم تحقيق الهدف {tp_num}: <b>{pips}</b> نقطة 🏆</b>\n"
-                     f"<b>━━━━━━━━━━━━━━</b>\n"
-                     f"<b>{symbol} {data['trade_type']}</b>\n"
-                     f"<b>الدخول: <b>{data['entry_low']}</b></b>\n"
-                     f"<b>الهدف: <b>{tp_price:.{decimals}f}</b></b>")
-        
-        for ch in data['channel_msgs']: 
-            try: bot.send_message(ch, target_msg, parse_mode='HTML')
-            except: pass
+                     f"<b>━━━━━━━━━━━━━━</b>\n<b>{symbol} {data['trade_type']}</b>\n"
+                     f"<b>الدخول: <b>{data['entry_low']}</b></b>\n<b>الهدف: <b>{tp_price:.{decimals}f}</b></b>")
+        for ch in data['channel_msgs']: bot.send_message(ch, target_msg, parse_mode='HTML')
 
     elif call.data == "hit_swing":
         data['tp_swing_done'] = True
         update_everywhere(uid)
         swing_alert = f"<b>🎯 تم تحقيق هدف الـ SWING في صفقة {symbol} 🏆</b>"
-        for ch in data['channel_msgs']:
-            try: bot.send_message(ch, swing_alert, parse_mode='HTML')
-            except: pass
+        for ch in data['channel_msgs']: bot.send_message(ch, swing_alert, parse_mode='HTML')
 
     elif call.data == "back_to_main":
         update_everywhere(uid)
@@ -244,18 +243,24 @@ def callback_router(call):
         data['published_channels'].append(str(target))
         update_everywhere(uid)
 
+def process_add_tp(message):
+    uid = message.from_user.id
+    try:
+        new_tp_price = float(message.text)
+        user_data[uid]['tp_prices'].append(new_tp_price)
+        update_everywhere(uid)
+        bot.send_message(message.chat.id, "✅ تم إضافة الهدف الجديد بنجاح!")
+    except:
+        bot.send_message(message.chat.id, "⚠️ خطأ في الرقم، لم يتم إضافة الهدف.")
+
 def process_manual_edit(message, field):
     uid = message.from_user.id
     try:
-        if field in ['entry_low', 'sl']:
-            user_data[uid][field] = float(message.text)
-        else:
-            user_data[uid][field] = message.text
-            
+        if field in ['entry_low', 'sl']: user_data[uid][field] = float(message.text)
+        else: user_data[uid][field] = message.text
         if field == 'entry_low': user_data[uid]['entry_display'] = message.text
-        
         update_everywhere(uid)
-        bot.send_message(message.chat.id, "✅ تم التحديث بنجاح!")
+        bot.send_message(message.chat.id, "✅ تم التعديل!")
     except: bot.send_message(message.chat.id, "⚠️ خطأ في الإدخال.")
 
 if __name__ == "__main__":
