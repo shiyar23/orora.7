@@ -223,7 +223,7 @@ def callback_router(call):
         data['sl'] = data['entry_low'] if idx == 0 else data['tp_prices'][idx-1]
         data['sl_at'] = "BE" if idx == 0 else f"TP{idx}"
         update_everywhere(uid)
-        send_update_to_channels(data, f"🚨 <b>{symbol}</b>\n<b>تم نقل الستوب لوز إلى {data['sl_at']} 🛡️</b>")
+        send_update_to_channels(data, f"🚨 <b>{symbol}</b>\n<b>تم حجز الأرباح ونقل الستوب إلى {data['sl_at']} 🛡️</b>")
 
     elif call.data == "main_edit":
         markup = types.InlineKeyboardMarkup()
