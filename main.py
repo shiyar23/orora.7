@@ -21,6 +21,12 @@ for c in CHANNELS_RAW.split(','):
 logging.basicConfig(level=logging.INFO)
 user_data = {}
 
+# --- نظام الإحصائيات الجديد ---
+daily_stats = {
+    "public": {"pips": 0, "win": 0, "loss": 0},
+    "private": {"pips": 0, "win": 0, "loss": 0}
+}
+
 EMOJI_MAP = {
     "EUR": "🇪🇺", "GBP": "🇬🇧", "JPY": "🇯🇵", "AUD": "🇦🇺",
     "CAD": "🇨🇦", "NZD": "🇳🇿", "CHF": "🇨🇭",
@@ -42,7 +48,6 @@ def calculate_pips(entry, target, pip_size, symbol):
         entry_f = float(entry)
         target_f = float(target)
         diff = abs(target_f - entry_f)
-        
         if "XAU" in symbol or "GOLD" in symbol: 
             return int(round(diff * 10, 0))
         return int(round(diff / pip_size, 0))
@@ -101,9 +106,7 @@ def create_inline_buttons(data, is_admin=True):
         swing_pips = calculate_pips(data['entry_low'], data['swing_price'], COMMODITIES[symbol][3], symbol)
         markup.add(types.InlineKeyboardButton(f"🎯 تحقيق SWING (+{swing_pips})", callback_data="hit_swing"))
     
-    # --- التحديث الجديد: زر ضرب الستوب ---
     markup.add(types.InlineKeyboardButton("❌ ضرب وقف الخسارة (Hit SL)", callback_data="hit_sl"))
-    
     markup.add(types.InlineKeyboardButton("🛡️ تأمين (Trail SL)", callback_data="trail_menu"))
     markup.add(types.InlineKeyboardButton("⚙️ تعديل الصفقة / اهداف إضافية", callback_data="main_edit"))
     markup.add(types.InlineKeyboardButton("✖️ إغلاق الصفقة نهائياً", callback_data="close_trade"))
@@ -136,6 +139,30 @@ def update_everywhere(user_id):
         try: bot.edit_message_text(text, channel, m_id, reply_markup=None, parse_mode='HTML')
         except: pass
 
+# --- وظائف التقرير والحصيلة ---
+
+def log_stat(data, pips, is_win):
+    # إذا كانت الصفقة منشورة في قناة واحدة نعتبرها خاصة، أكثر من ذلك عامة
+    scope = "private" if len(data.get('published_channels', [])) <= 1 else "public"
+    daily_stats[scope]['pips'] += pips
+    if is_win:
+        daily_stats[scope]['win'] += 1
+    else:
+        daily_stats[scope]['loss'] += 1
+
+def generate_report_msg(scope):
+    stats = daily_stats[scope]
+    title = "📊 حصيلة القناة العامة لليوم" if scope == "public" else "💎 حصيلة قناة VIP الخاصة لليوم"
+    emoji = "📈" if stats['pips'] >= 0 else "📉"
+    
+    report = f"<b>{title}</b>\n"
+    report += f"<b>━━━━━━━━━━━━━━</b>\n"
+    report += f"✅ صفقات ناجحة: <b>{stats['win']}</b>\n"
+    report += f"❌ صفقات خاسرة: <b>{stats['loss']}</b>\n"
+    report += f"<b>{emoji} إجمالي النقاط: <code>{stats['pips']}</code> نقطة</b>\n"
+    report += f"<b>━━━━━━━━━━━━━━</b>\n"
+    return report
+
 # --- المعالجات الرئيسية ---
 
 @bot.message_handler(commands=['start', 'new'])
@@ -146,13 +173,34 @@ def cmd_start(message):
         'tp_prices': [], 'is_secured': False, 'sl_at': '',
         'tp_swing_done': False, 'swing_price': '', 'is_active': False, 'is_closed': False
     }
+    # كيبورد التحكم الدائم
+    main_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    main_markup.add("📊 فتح صفقة جديدة", "📝 حصيلة اليوم", "🔄 تصفير الإحصائيات")
+    bot.send_message(message.chat.id, "🤖 <b>لوحة تحكم بوت التداول:</b>", reply_markup=main_markup, parse_mode='HTML')
+
+@bot.message_handler(func=lambda m: m.text == "📊 فتح صفقة جديدة")
+def menu_new_trade(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     for k in COMMODITIES.keys(): markup.add(k)
-    bot.send_message(message.chat.id, "📊 <b>أهلاً بك. اختر الرمز للبدء:</b>", reply_markup=markup, parse_mode='HTML')
+    bot.send_message(message.chat.id, "اختر الرمز للبدء:", reply_markup=markup)
+
+@bot.message_handler(func=lambda m: m.text == "📝 حصيلة اليوم")
+def menu_stats(message):
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("📢 تقرير العامة", callback_data="show_report_public"))
+    markup.add(types.InlineKeyboardButton("🔐 تقرير الخاصة (VIP)", callback_data="show_report_private"))
+    bot.send_message(message.chat.id, "اختر نوع التقرير لعرضه ونشره:", reply_markup=markup)
+
+@bot.message_handler(func=lambda m: m.text == "🔄 تصفير الإحصائيات")
+def reset_stats(message):
+    global daily_stats
+    daily_stats = {"public": {"pips": 0, "win": 0, "loss": 0}, "private": {"pips": 0, "win": 0, "loss": 0}}
+    bot.send_message(message.chat.id, "✅ تم تصفير كافة إحصائيات الأرباح والخسائر لليوم.")
 
 @bot.message_handler(func=lambda m: m.text in COMMODITIES)
 def set_commodity(message):
     uid = message.from_user.id
+    if uid not in user_data: cmd_start(message)
     user_data[uid]['commodity'] = message.text
     user_data[uid]['emoji'] = EMOJI_MAP.get(COMMODITIES[message.text][1], "📈")
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
@@ -197,7 +245,25 @@ def set_sl_final(message):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_router(call):
     uid = call.from_user.id
-    if uid not in user_data: return
+    if uid not in user_data and not call.data.startswith("show_report") and not call.data.startswith("publish_report"): return
+    
+    if call.data.startswith("show_report_"):
+        scope = call.data.split("_")[2]
+        report_text = generate_report_msg(scope)
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🚀 نشر في القنوات", callback_data=f"publish_report_{scope}"))
+        bot.send_message(call.message.chat.id, report_text, reply_markup=markup, parse_mode='HTML')
+        return
+
+    if call.data.startswith("publish_report_"):
+        scope = call.data.split("_")[2]
+        report_text = generate_report_msg(scope)
+        for channel in CHANNELS_LIST:
+            try: bot.send_message(channel, report_text, parse_mode='HTML')
+            except: pass
+        bot.answer_callback_query(call.id, "تم نشر التقرير ✅")
+        return
+
     data = user_data[uid]
     symbol = data['commodity']
 
@@ -210,28 +276,33 @@ def callback_router(call):
         tp_num = int(call.data.split('_')[2])
         data[f'tp{tp_num}_done'] = True
         pips = calculate_pips(data['entry_low'], data['tp_prices'][tp_num-1], COMMODITIES[symbol][3], symbol)
+        # تسجيل في الإحصائيات (ربح)
+        log_stat(data, pips, True)
         update_everywhere(uid)
         send_update_to_channels(data, f"<b>✅ تم تحقيق الهدف {tp_num}: <b>+{pips}</b> نقطة 🏆</b>")
 
     elif call.data == "hit_swing":
         data['tp_swing_done'] = True
         pips = calculate_pips(data['entry_low'], data['swing_price'], COMMODITIES[symbol][3], symbol)
+        log_stat(data, pips, True)
         update_everywhere(uid)
         send_update_to_channels(data, f"<b>🎯 تم تحقيق هدف الـ SWING لصفقة {symbol}: <b>+{pips}</b> نقطة 🏆</b>")
 
-    # --- التحديث الجديد: منطق ضرب الستوب ---
     elif call.data == "hit_sl":
         data['is_closed'] = True
         if data.get('is_secured'):
             sl_at = data.get('sl_at', '')
             if sl_at == "BE":
                 msg_text = f"🛡️ <b>{symbol}</b>\n<b>تم ضرب نقطة الدخول (Break Even) والخروج بنتيجة متعادلة. 🤝</b>"
+                log_stat(data, 0, True) # BE يعتبر صفقة ناجحة بدون نقاط
             else:
                 pips = calculate_pips(data['entry_low'], data['sl'], COMMODITIES[symbol][3], symbol)
                 msg_text = f"🛡️ <b>{symbol}</b>\n<b>تم ضرب وقف التأمين عند {sl_at} والخروج بربح +{pips} نقطة محققة 🏆✅</b>"
+                log_stat(data, pips, True)
         else:
             pips_loss = calculate_pips(data['entry_low'], data['sl'], COMMODITIES[symbol][3], symbol)
             msg_text = f"❌ <b>{symbol}</b>\n<b>للأسف، تم ضرب وقف الخسارة (SL). محصلة النقاط: ({pips_loss}-) 📉</b>"
+            log_stat(data, -pips_loss, False)
         
         update_everywhere(uid)
         send_update_to_channels(data, msg_text)
