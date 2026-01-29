@@ -10,7 +10,6 @@ CHANNELS_RAW = os.getenv('CHANNELS', '@aicodtrading,-1003715686424')
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# معالجة القنوات
 CHANNELS_LIST = []
 for c in CHANNELS_RAW.split(','):
     c = c.strip()
@@ -41,7 +40,7 @@ COMMODITIES = {
 def calculate_pips(entry, target, pip_size, symbol):
     try:
         diff = abs(float(target) - float(entry))
-        if "XAU" in symbol: return int(round(diff * 10, 0))
+        if "XAU" in symbol or "GOLD" in symbol: return int(round(diff * 10, 0))
         return int(round(diff / pip_size, 0))
     except: return 0
 
@@ -72,6 +71,7 @@ def generate_setup_text(data):
 def create_inline_buttons(data):
     markup = types.InlineKeyboardMarkup(row_width=1)
     symbol = data['commodity']
+    msg_id = data.get('msg_id')
 
     for i, tp_price in enumerate(data['tp_prices']):
         tp_num = i + 1
@@ -108,14 +108,9 @@ def update_everywhere(user_id):
 def cmd_start(message):
     uid = message.from_user.id
     user_data[uid] = {
-        'chat_id': message.chat.id, 
-        'channel_msgs': {}, 
-        'published_channels': [], 
-        'tp_prices': [], 
-        'is_secured': False, 
-        'sl_at': '',
-        'tp_swing_done': False,
-        'swing_price': ''
+        'chat_id': message.chat.id, 'channel_msgs': {}, 'published_channels': [], 
+        'tp_prices': [], 'is_secured': False, 'sl_at': '',
+        'tp_swing_done': False, 'swing_price': ''
     }
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     for k in COMMODITIES.keys(): markup.add(k)
@@ -169,6 +164,7 @@ def callback_router(call):
     if uid not in user_data: return
     data = user_data[uid]
     symbol = data['commodity']
+    decimals = COMMODITIES[symbol][2]
 
     if call.data == "trail_menu":
         markup = types.InlineKeyboardMarkup()
@@ -211,13 +207,31 @@ def callback_router(call):
         bot.register_next_step_handler(call.message, process_manual_edit, 'swing_price')
 
     elif call.data.startswith("hit_tp_"):
-        num = int(call.data.split('_')[2])
-        data[f'tp{num}_done'] = True
+        tp_num = int(call.data.split('_')[2])
+        data[f'tp{tp_num}_done'] = True
+        tp_price = data['tp_prices'][tp_num-1]
+        pips = calculate_pips(data['entry_low'], tp_price, COMMODITIES[symbol][3], symbol)
+        
         update_everywhere(uid)
+        
+        # رسالة التنبيه للقنوات (كانت مفقودة في كودك)
+        target_msg = (f"<b>✅ تم تحقيق الهدف {tp_num}: <b>{pips}</b> نقطة 🏆</b>\n"
+                     f"<b>━━━━━━━━━━━━━━</b>\n"
+                     f"<b>{symbol} {data['trade_type']}</b>\n"
+                     f"<b>الدخول: <b>{data['entry_low']}</b></b>\n"
+                     f"<b>الهدف: <b>{tp_price:.{decimals}f}</b></b>")
+        
+        for ch in data['channel_msgs']: 
+            try: bot.send_message(ch, target_msg, parse_mode='HTML')
+            except: pass
 
     elif call.data == "hit_swing":
         data['tp_swing_done'] = True
         update_everywhere(uid)
+        swing_alert = f"<b>🎯 تم تحقيق هدف الـ SWING في صفقة {symbol} 🏆</b>"
+        for ch in data['channel_msgs']:
+            try: bot.send_message(ch, swing_alert, parse_mode='HTML')
+            except: pass
 
     elif call.data == "back_to_main":
         update_everywhere(uid)
@@ -233,8 +247,7 @@ def callback_router(call):
 def process_manual_edit(message, field):
     uid = message.from_user.id
     try:
-        # السماح بالنصوص والأرقام في حالة العرض
-        if field == 'entry_low' or field == 'sl':
+        if field in ['entry_low', 'sl']:
             user_data[uid][field] = float(message.text)
         else:
             user_data[uid][field] = message.text
@@ -242,7 +255,7 @@ def process_manual_edit(message, field):
         if field == 'entry_low': user_data[uid]['entry_display'] = message.text
         
         update_everywhere(uid)
-        bot.send_message(message.chat.id, "✅ تم التحديث!")
+        bot.send_message(message.chat.id, "✅ تم التحديث بنجاح!")
     except: bot.send_message(message.chat.id, "⚠️ خطأ في الإدخال.")
 
 if __name__ == "__main__":
