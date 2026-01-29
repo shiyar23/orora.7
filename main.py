@@ -52,18 +52,18 @@ def generate_setup_text(data):
     name, _, decimals, _, _ = COMMODITIES[symbol]
     direction_emoji = '🟢' if 'BUY' in data['trade_type'] else '🔴'
     
-    # التنسيق الجديد الغامق والجذاب
+    # تنسيق غامق جداً للأرقام والعناوين
     txt = f"<b>📊 SETUP: {name} {data['emoji']}</b>\n"
     txt += f"<b>━━━━━━━━━━━━━━</b>\n"
     txt += f"<b>Type: {data['trade_type']} {direction_emoji}</b>\n\n"
-    txt += f"<b>Entry: <code>{data['entry_display']}</code></b>\n"
+    txt += f"<b>Entry: <code><b>{data['entry_display']}</b></code></b>\n"
     
     sl_status = "<b>🛡️ BE</b>" if data.get('is_be') else "<b>❌</b>"
-    txt += f"<b>SL: <code>{data['sl']:.{decimals}f}</code> {sl_status}</b>\n\n"
+    txt += f"<b>SL: <code><b>{data['sl']:.{decimals}f}</b></code> {sl_status}</b>\n\n"
     
     for i, tp in enumerate(data['tp_prices']):
         status = "<b>✅ Done</b>" if data.get(f'tp{i+1}_done') else "<b>☑️</b>"
-        txt += f"{status} <b>TP{i+1}: <code>{tp:.{decimals}f}</code></b>\n"
+        txt += f"{status} <b>TP{i+1}: <code><b>{tp:.{decimals}f}</b></code></b>\n"
         
     swing_status = "<b>✅ Done</b>" if data.get('tp_swing_done') else "<b>☑️</b>"
     txt += f"{swing_status} <b>TP SWING</b>\n"
@@ -107,7 +107,7 @@ def update_everywhere(user_id):
         try: bot.edit_message_text(text, channel, m_id, parse_mode='HTML')
         except: pass
 
-# --- المعالجات (نفس المنطق السابق مع رسائل معربة) ---
+# --- المعالجات الرئيسية ---
 
 @bot.message_handler(commands=['start', 'new'])
 def cmd_start(message):
@@ -179,12 +179,13 @@ def callback_router(call):
         tp_price = data['tp_prices'][tp_num-1]
         pips = calculate_pips(data['entry_low'], tp_price, pip_size, symbol)
         
+        # رسالة الهدف بأرقام غامقة
         target_msg = (
-            f"<b>✅ تم تحقيق الهدف {tp_num}: {pips} نقطة 🏆</b>\n"
+            f"<b>✅ تم تحقيق الهدف {tp_num}: <b>{pips}</b> نقطة 🏆</b>\n"
             f"<b>━━━━━━━━━━━━━━</b>\n"
             f"<b>{name} {data['trade_type']}</b>\n"
-            f"<b>الدخول: {data['entry_low']:.{decimals}f}</b>\n"
-            f"<b>الهدف: {tp_price:.{decimals}f}</b>"
+            f"<b>الدخول: <b>{data['entry_low']:.{decimals}f}</b></b>\n"
+            f"<b>الهدف {tp_num}: <b>{tp_price:.{decimals}f}</b></b>"
         )
         
         update_everywhere(uid)
