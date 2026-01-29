@@ -4,9 +4,8 @@ import logging
 import os
 from telebot import types
 
-# --- إعدادات البيئة (Railway Env Vars) ---
+# --- إعدادات البيئة ---
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-# في Railway ضع القنوات هكذا: @aicodtrading, -1003715686424
 CHANNELS_RAW = os.getenv('CHANNELS', '@aicodtrading,-1003715686424')
 
 if not BOT_TOKEN:
@@ -14,7 +13,6 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# معالجة القنوات (تحويل الأرقام إلى int واليوزرات إلى str)
 CHANNELS_LIST = []
 for c in CHANNELS_RAW.split(','):
     c = c.strip()
@@ -56,7 +54,7 @@ def generate_setup_text(data):
     txt = f"<b>📊 SETUP: {name} {data['emoji']}</b>\n"
     txt += f"<b>Type:</b> {data['trade_type']} {'🟢' if 'BUY' in data['trade_type'] else '🔴'}\n\n"
     txt += f"<b>Entry:</b> <code>{data['entry_display']}</code>\n"
-    txt += f"<b>SL:</b> <code>{data['sl']:.{decimals}f}</code> ❌\n\n"
+    txt += f"<b>SL:</b> <code>{data['sl']:.{decimals}f}</code> {'🛡️ BE' if data.get('is_be') else '❌'}\n\n"
     
     for i, tp in enumerate(data['tp_prices']):
         status = "✅ <b>Done</b>" if data.get(f'tp{i+1}_done') else "☑️"
@@ -79,6 +77,10 @@ def create_inline_buttons(data):
 
     if not data.get('tp_swing_done'):
         markup.add(types.InlineKeyboardButton("🎯 Hit SWING", callback_data=f"hit_swing_{msg_id}"))
+    
+    # زر تعديل الستوب إلى الدخول
+    if not data.get('is_be'):
+        markup.add(types.InlineKeyboardButton("🛡️ Move SL to Entry (BE)", callback_data=f"move_be_{msg_id}"))
     
     markup.add(types.InlineKeyboardButton("➕ إضافة هدف جديد (TP)", callback_data=f"add_manual_tp_{msg_id}"))
     
@@ -104,7 +106,7 @@ def update_everywhere(user_id):
 @bot.message_handler(commands=['start', 'new'])
 def cmd_start(message):
     uid = message.from_user.id
-    user_data[uid] = {'chat_id': message.chat.id, 'channel_msgs': {}, 'published_channels': [], 'tp_prices': []}
+    user_data[uid] = {'chat_id': message.chat.id, 'channel_msgs': {}, 'published_channels': [], 'tp_prices': [], 'is_be': False}
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     for k in COMMODITIES.keys(): markup.add(k)
     bot.send_message(message.chat.id, "مرحباً! اختر الرمز:", reply_markup=markup)
@@ -154,10 +156,11 @@ def callback_router(call):
     uid = call.from_user.id
     if uid not in user_data: return
     data = user_data[uid]
+    symbol = data['commodity']
+    name, _, decimals, pip_size, _ = COMMODITIES[symbol]
     
     if "send_to_" in call.data:
         channel_val = call.data.split('_')[2]
-        # محاولة التحويل لرقم إذا كان ID قناة خاصة
         target = int(channel_val) if channel_val.replace('-', '').isdigit() else channel_val
         sent = bot.send_message(target, generate_setup_text(data), parse_mode='HTML')
         data['channel_msgs'][target] = sent.message_id
@@ -167,9 +170,30 @@ def callback_router(call):
     elif "hit_tp_" in call.data:
         tp_num = int(call.data.split('_')[2])
         data[f'tp{tp_num}_done'] = True
+        tp_price = data['tp_prices'][tp_num-1]
+        pips = calculate_pips(data['entry_low'], tp_price, pip_size, symbol)
+        
+        # تنسيق رسالة الهدف كما طلبت
+        target_msg = (
+            f"✅Done TP{tp_num}: {pips} PIPS 🏆\n"
+            f"<b>{name} {data['trade_type']}</b>\n"
+            f"Entry: {data['entry_low']:.{decimals}f}\n"
+            f"TP{tp_num}: {tp_price:.{decimals}f}"
+        )
+        
         update_everywhere(uid)
         for ch, _ in data['channel_msgs'].items():
-            bot.send_message(ch, f"✅ <b>{data['commodity']}</b>\nTarget {tp_num} Hit! 🎯", parse_mode='HTML')
+            bot.send_message(ch, target_msg, parse_mode='HTML')
+
+    elif "move_be_" in call.data:
+        data['is_be'] = True
+        data['sl'] = data['entry_low'] # تعديل SL لمنطقة الدخول
+        update_everywhere(uid)
+        
+        # تنبيه القنوات بنقل الستوب
+        be_msg = f"🚨 <b>{name}</b>\nStop Loss moved to Entry (Break Even) 🛡️"
+        for ch, _ in data['channel_msgs'].items():
+            bot.send_message(ch, be_msg, parse_mode='HTML')
 
     elif "add_manual_tp_" in call.data:
         msg = bot.send_message(call.message.chat.id, "أدخل سعر الهدف الجديد:")
@@ -181,7 +205,7 @@ def add_tp_logic(message):
         new_val = float(message.text)
         user_data[uid]['tp_prices'].append(new_val)
         update_everywhere(uid)
-        bot.send_message(message.chat.id, "✅ تم!")
+        bot.send_message(message.chat.id, "✅ تم إضافة الهدف وتحديث الرسائل!")
     except:
         bot.send_message(message.chat.id, "رقم غير صحيح.")
 
