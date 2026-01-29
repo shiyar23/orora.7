@@ -39,7 +39,6 @@ COMMODITIES = {
 
 def calculate_pips(entry, target, pip_size, symbol):
     try:
-        # التأكد من تحويل المدخلات إلى أرقام
         entry_f = float(entry)
         target_f = float(target)
         diff = abs(target_f - entry_f)
@@ -98,10 +97,12 @@ def create_inline_buttons(data, is_admin=True):
             pips = calculate_pips(data['entry_low'], tp_price, COMMODITIES[symbol][3], symbol)
             markup.add(types.InlineKeyboardButton(f"✅ تحقيق الهدف {tp_num} (+{pips})", callback_data=f"hit_tp_{tp_num}"))
 
-    # زر تحقيق الـ SWING مع حساب النقاط
     if data.get('swing_price') and not data.get('tp_swing_done'):
         swing_pips = calculate_pips(data['entry_low'], data['swing_price'], COMMODITIES[symbol][3], symbol)
         markup.add(types.InlineKeyboardButton(f"🎯 تحقيق SWING (+{swing_pips})", callback_data="hit_swing"))
+    
+    # --- التحديث الجديد: زر ضرب الستوب ---
+    markup.add(types.InlineKeyboardButton("❌ ضرب وقف الخسارة (Hit SL)", callback_data="hit_sl"))
     
     markup.add(types.InlineKeyboardButton("🛡️ تأمين (Trail SL)", callback_data="trail_menu"))
     markup.add(types.InlineKeyboardButton("⚙️ تعديل الصفقة / اهداف إضافية", callback_data="main_edit"))
@@ -214,10 +215,26 @@ def callback_router(call):
 
     elif call.data == "hit_swing":
         data['tp_swing_done'] = True
-        # حساب النقاط للـ Swing
         pips = calculate_pips(data['entry_low'], data['swing_price'], COMMODITIES[symbol][3], symbol)
         update_everywhere(uid)
         send_update_to_channels(data, f"<b>🎯 تم تحقيق هدف الـ SWING لصفقة {symbol}: <b>+{pips}</b> نقطة 🏆</b>")
+
+    # --- التحديث الجديد: منطق ضرب الستوب ---
+    elif call.data == "hit_sl":
+        data['is_closed'] = True
+        if data.get('is_secured'):
+            sl_at = data.get('sl_at', '')
+            if sl_at == "BE":
+                msg_text = f"🛡️ <b>{symbol}</b>\n<b>تم ضرب نقطة الدخول (Break Even) والخروج بنتيجة متعادلة. 🤝</b>"
+            else:
+                pips = calculate_pips(data['entry_low'], data['sl'], COMMODITIES[symbol][3], symbol)
+                msg_text = f"🛡️ <b>{symbol}</b>\n<b>تم ضرب وقف التأمين عند {sl_at} والخروج بربح +{pips} نقطة محققة 🏆✅</b>"
+        else:
+            pips_loss = calculate_pips(data['entry_low'], data['sl'], COMMODITIES[symbol][3], symbol)
+            msg_text = f"❌ <b>{symbol}</b>\n<b>للأسف، تم ضرب وقف الخسارة (SL). محصلة النقاط: ({pips_loss}-) 📉</b>"
+        
+        update_everywhere(uid)
+        send_update_to_channels(data, msg_text)
 
     elif call.data == "trail_menu":
         markup = types.InlineKeyboardMarkup()
@@ -254,7 +271,7 @@ def callback_router(call):
     elif call.data == "close_trade":
         data['is_closed'] = True
         update_everywhere(uid)
-        send_update_to_channels(data, f"✖️ <b>{symbol}</b>\n<b>تم إغلاق الصفقة بالكامل. 🛑</b>")
+        send_update_to_channels(data, f"✖️ <b>{symbol}</b>\n<b>تم إغلاق الصفقة يدوياً بالكامل. 🛑</b>")
 
     elif call.data == "back_to_main":
         update_everywhere(uid)
@@ -283,7 +300,6 @@ def process_swing_input(message):
     uid = message.from_user.id
     if uid in user_data:
         try:
-            # التأكد من أنه رقم
             float(message.text)
             user_data[uid]['swing_price'] = message.text
             update_everywhere(uid)
