@@ -292,7 +292,7 @@ def callback_router(call):
         data['is_closed'] = True
         if data.get('is_secured'):
             sl_at = data.get('sl_at', '')
-            if sl_at == "BE":
+            if sl_at == "Break Even":
                 msg_text = f"🛡️ <b>{symbol}</b>\n<b>تم ضرب نقطة الدخول (Break Even) والخروج بنتيجة متعادلة. 🤝</b>"
                 log_stat(data, 0, True) # BE يعتبر صفقة ناجحة بدون نقاط
             else:
@@ -319,7 +319,7 @@ def callback_router(call):
         idx = int(call.data.split('_')[2])
         data['is_secured'] = True
         data['sl'] = data['entry_low'] if idx == 0 else data['tp_prices'][idx-1]
-        data['sl_at'] = "BE" if idx == 0 else f"TP{idx}"
+        data['sl_at'] = "Break Even" if idx == 0 else f"TP{idx}"
         update_everywhere(uid)
         send_update_to_channels(data, f"🚨 <b>{symbol}</b>\n<b>تم حجز الأرباح ونقل الستوب إلى  {data['sl_at']} 🛡️</b>")
 
